@@ -22,7 +22,7 @@ import threading
 from datetime import datetime
 
 # For S-parameter processing
-import scikit_rf as rf
+import skrf as rf
 from scipy import signal, fft
 from scipy.interpolate import interp1d
 
