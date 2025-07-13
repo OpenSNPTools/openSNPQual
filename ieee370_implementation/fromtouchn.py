@@ -18,7 +18,7 @@ Output: [freq, Sdata, npts] where
 """
 
 import skrf as rf
-import numy as np
+import numpy as np
 from typing import List, Dict, Tuple, Optional
 
 
@@ -26,8 +26,12 @@ def fromtouchn(filepath: str) -> Optional[rf.Network]:
     """Load touchstone file using scikit-rf"""
     try:
         network = rf.Network(filepath)
-        #TODO implement extraction of freq, Sdata and npts
-        return network
+        
+        freq = network.f
+        npts = len(freq)
+        Sdata = network.s
+        
+        return freq, Sdata, npts
     
     except Exception as e:
         print(f"Error loading {filepath}: {str(e)}")

@@ -13,3 +13,7 @@ https://opensource.ieee.org/elec-char/ieee-370/-/blob/master/TG3/qualityCheck.m
 """
 
 #TODO!!
+
+def qualityCheck(Sdata, Nf, port_num):
+    
+    return None
