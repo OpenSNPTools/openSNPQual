@@ -10,20 +10,24 @@ This is a Python adaptation of Octave code from IEEE 370 code:
 https://opensource.ieee.org/elec-char/ieee-370/-/blob/master/TG3/testQualityCheck_2Port.m
 % Original MATLAB code copyright (c) 2017, IEEE 370 Open Source Authors (See IEEE370_AUTHORS.md)
 
+SPDX-License-Identifier: BSD-3-Clause
 """
 
+import numpy as np
 from fromtouchn import  fromtouchn
 from qualityCheck import  qualityCheck
-from qualityCheckFrequencyDomain import  qualityCheckFrequencyDomain
+from qualityCheckFrequencyDomain import  quality_check_frequency_domain
 
 #%% Read Data
 #TODO add scikit-rf parsing of sparams
-[freq,Sdata,npts] = fromtouchn('../example_touchstone/pcb_stripline_119mm.s2p'); 
+# [freq,Sdata,npts] = fromtouchn('../example_touchstone/pcb_stripline_119mm.s2p');
+# [freq,Sdata,npts] = fromtouchn('../example_touchstone/pcb_stripline_238mm.s2p');
 
-
+# [freq,Sdata,npts] = fromtouchn('../example_touchstone/CABLE1_TX_pair.s4p');
+[freq,Sdata,npts] = fromtouchn('../example_touchstone/CABLE1_RX_pair.s4p');
 
 #%% Settings
-port_num = 2;
+port_num = np.shape(Sdata)[0]; # get numports from the Sparam matrix, assumes all SNP data are square matrices
 data_rate = 25.125; #data rate in Gbps
 rise_per = 0.4; # rise time - fraction of UI
 sample_per_UI = 32;
@@ -33,9 +37,10 @@ extrapolation_method = 2; #1 is constant extrapolation; 2 is zero padding;
 
 #%% Frequency domain checking
 #TODO implement qualityCheckFrequencyDomain.py
-# [causality_metric_freq, reciprocity_metric_freq, passivity_metric_freq] = qualityCheckFrequencyDomain(Sdata,npts,port_num);
+[causality_metric_freq, reciprocity_metric_freq, passivity_metric_freq] = quality_check_frequency_domain(Sdata,npts,port_num);
 
-# print([causality_metric_freq, passivity_metric_freq, reciprocity_metric_freq])
+print('causality_metric_freq, passivity_metric_freq, reciprocity_metric_freq')
+print(causality_metric_freq, passivity_metric_freq, reciprocity_metric_freq)
 
 #%%Time domain checking
 #TODO implement qualityCheck.py and dependencies

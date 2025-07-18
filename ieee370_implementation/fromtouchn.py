@@ -14,7 +14,9 @@ Output: [freq, Sdata, npts] where
         freq - array of frequency points
         Sdata - sparam MATRIX form of numpy array
         npts - size of freq array
-
+        
+        
+SPDX-License-Identifier: BSD-3-Clause
 """
 
 import skrf as rf
@@ -29,7 +31,7 @@ def fromtouchn(filepath: str) -> Optional[rf.Network]:
         
         freq = network.f
         npts = len(freq)
-        Sdata = network.s
+        Sdata = np.transpose(network.s) # Note: transposing the matrix matches the data structure used in IEEE370 code [m,n, freq]
         
         return freq, Sdata, npts
     
