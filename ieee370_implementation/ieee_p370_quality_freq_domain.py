@@ -170,7 +170,7 @@ def quality_check_frequency_domain_detailed(sdata: np.ndarray, nf: int, port_num
     # Passivity and Reciprocity
     for i in range(nf):
         # Passivity
-        PM[i] = np.linalg.norm(sdata[:, :, i])
+        PM[i] = np.linalg.norm(sdata[:, :, i], ord=2)
         if PM[i] > A:
             PW[i] = (PM[i] - A) / B
             passivity_violations.append(i)

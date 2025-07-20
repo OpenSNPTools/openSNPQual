@@ -31,8 +31,8 @@ def fromtouchn(filepath: str) -> Optional[rf.Network]:
         
         freq = network.f
         npts = len(freq)
-        Sdata = np.transpose(network.s) # Note: transposing the matrix matches the data structure used in IEEE370 code [m,n, freq]
-        
+        Sdata = np.transpose(network.s, (1, 2, 0)) # Note: transposing the matrix matches the data structure used in IEEE370 code [m,n, freq]
+
         return freq, Sdata, npts
     
     except Exception as e:
