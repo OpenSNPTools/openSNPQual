@@ -1,26 +1,47 @@
 # Quality Metrics Calculated for The Example Touchstone Files
 
-Last update: 2025-07-17
+## Change log
+**2025-08-02:** added correlation to IEEE370 Time Domain metric CAUSALITY including the Causality matrix, status: OK. Stripline S-parameters correlate. 
+
+**2025-07-17:** added correlation to IEE370 Freq domain all metrics; status: OK. All 4 sample s-parameters correlate.
 
 ## pcb_stripline_119mm.s2p
 
 Frequency domain result comparison:
 
-| Method Freq | Causality         | Passivity         | Reciprocity       |
+| Method FREQ | Causality         | Passivity         | Reciprocity       |
 |-------------|-------------------|-------------------|-------------------|
 | IEEE370     | 9.7139            | 99.9999           | 94.1444           |
 | OpenSNPQual | 9.713891023717428 | 99.99993110422362 | 94.14443314741024 |
-    
-    
-Time_Causality_Passivity_Reciprocity =
 
-   6.6500        0   3.4000
-   
-causality_time_domain_difference_mv =
+---
 
-   9.5960e-03   5.7716e-03
+Time domain calculation settings:
+
+	data_rate = 25.125; #data rate in Gbps
+	rise_per = 0.4; # rise time - fraction of UI
+	sample_per_UI = 32;
+	pulse_shape = 1; #1 is Gaussian; 2 is Rectangular with Butterworth filter; 3 is Rectangular with Gaussian filter;
+	extrapolation_method = 2; #1 is constant extrapolation; 2 is zero padding;
+	
+
+| Method TIME | Causality         | Passivity         | Reciprocity       |
+|-------------|-------------------|-------------------|-------------------|
+| IEEE370     | 6.655000          | 0.010000          | 3.380000          |
+| OpenSNPQual | 6.655             | 0.015             | 3.465             |
    
-   5.2785e-03   5.0836e-03
+
+
+#### Matrix: causality_time_domain_difference_mv
+
+| IEEE370 | 1           | 2           |
+|---------|-------------|-------------|
+| 1       | 9.5960e-03  | 5.7716e-03  |
+| 2       | 5.2785e-03  | 5.0836e-03  |
+| OpenSNPQual | 1             | 2             |
+| 1           | 9.593728e-03  | 5.771632e-03  |
+| 2           | 5.279385e-03  | 5.083631e-03  |
+
 
 reciprocity_time_domain_difference_mv =
 
@@ -42,18 +63,30 @@ Frequency domain result comparison:
 | Method Freq | Causality         | Passivity         | Reciprocity       |
 |-------------|-------------------|-------------------|-------------------|
 | IEEE370     | 11.512            | 100.000           | 96.853            |
-| OpenSNPQual | 11.51155849954462 | 9.99994453028125  | 96.85330004075794 |
+| OpenSNPQual | 11.51155849954462 | 99.9994453028125  | 96.85330004075794 |
 
 
-Time_Causality_Passivity_Reciprocity =
+---
 
-   5.6000        0   2.4500
-   
-causality_time_domain_difference_mv =
+| Method TIME | Causality         | Passivity         | Reciprocity       |
+|-------------|-------------------|-------------------|-------------------|
+| IEEE370     | 5.6000            | 0                 | 2.4500            |
+| OpenSNPQual | 5.595             | 0.015             | 2.43              |
 
-   7.7848e-03   5.0713e-03
-   
-   4.2552e-03   4.7415e-03
+  
+#### Matrix: causality_time_domain_difference_mv
+
+| IEEE370 | 1           | 2           |
+|---------|-------------|-------------|
+| 1       | 7.7848e-03   | 5.0713e-03  |
+| 2       | 4.2552e-03   | 4.7415e-03  |
+| OpenSNPQual | 1             | 2             |
+| 1           | 7.784144e-03  | 5.071260e-03  |
+| 2           | 4.266165e-03  | 4.741466e-03  |
+
+
+---
+     
 
 reciprocity_time_domain_difference_mv =
 
