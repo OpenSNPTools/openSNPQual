@@ -42,7 +42,7 @@ extrapolation_method = 2; #1 is constant extrapolation; 2 is zero padding;
 
 #%%Time domain checking
 # TODO implement qualityCheck.py and dependencies
-np.set_printoptions(formatter={'float': '{:.6e}'.format})
+np.set_printoptions(formatter={'float': '{:.6e}'.format}) # makes sure the print happens in scientific notation
 [causality_metric, reciprocity_metric, passivity_metric] = quality_check(freq,Sdata,port_num,data_rate,sample_per_UI,rise_per,pulse_shape,extrapolation_method,1);
 
 print('\n[causality_metric/2, passivity_metric/2, reciprocity_metric/2]')

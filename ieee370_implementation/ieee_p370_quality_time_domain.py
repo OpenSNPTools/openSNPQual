@@ -80,43 +80,33 @@ def quality_check(freq: np.ndarray,
     passive_matrix = create_passive_matrix(original_interpolated, port_num)
     
     # Get Time Domain Matrices
-    time_domain_causal, time_causal = get_time_domain_matrix(
-        causal_matrix, causal_freq, port_num, data_rate, rise_per, pulse_shape)
-    time_domain_reciprocal, time_reciprocal = get_time_domain_matrix(
-        reciprocal_matrix, freq, port_num, data_rate, rise_per, pulse_shape)
-    time_domain_passive, time_passive = get_time_domain_matrix(
-        passive_matrix, freq, port_num, data_rate, rise_per, pulse_shape)
-    time_domain_original, time_original = get_time_domain_matrix(
-        original_interpolated, freq, port_num, data_rate, rise_per, pulse_shape)
+    time_domain_causal,     time_causal     = get_time_domain_matrix(causal_matrix,  causal_freq, port_num, data_rate, rise_per, pulse_shape)
+    time_domain_reciprocal, time_reciprocal = get_time_domain_matrix(reciprocal_matrix,     freq, port_num, data_rate, rise_per, pulse_shape)
+    time_domain_passive,    time_passive    = get_time_domain_matrix(passive_matrix,        freq, port_num, data_rate, rise_per, pulse_shape)
+    time_domain_original,   time_original   = get_time_domain_matrix(original_interpolated, freq, port_num, data_rate, rise_per, pulse_shape)
     
     # Get Time Domain Difference causality
-    causality_time_domain_difference_mv = get_time_domain_difference_mv(
-        time_domain_causal, time_domain_original, port_num, data_rate, 
-        time_original, True, delay_matrix)
+    causality_time_domain_difference_mv = get_time_domain_difference_mv(time_domain_causal, time_domain_original, port_num, data_rate, time_original, True, delay_matrix)
     
     print('\ncausality_time_domain_difference_mv')
     print(causality_time_domain_difference_mv)
     
     # Get Time Domain Difference reciprocity
-    reciprocity_time_domain_difference_mv = get_time_domain_difference_mv(
-        time_domain_reciprocal, time_domain_original, port_num, data_rate, 
-        time_original, False, 0)
+    reciprocity_time_domain_difference_mv = get_time_domain_difference_mv(time_domain_reciprocal, time_domain_original, port_num, data_rate, time_original, False, 0)
     
     print('\nreciprocity_time_domain_difference_mv')
     print(reciprocity_time_domain_difference_mv)
     
     # Get Time Domain Difference passivity
-    passivity_time_domain_difference_mv = get_time_domain_difference_mv(
-        time_domain_passive, time_domain_original, port_num, data_rate, 
-        time_original, False, 0)
+    passivity_time_domain_difference_mv = get_time_domain_difference_mv(time_domain_passive, time_domain_original, port_num, data_rate, time_original, False, 0)
     
     print('\npassivity_time_domain_difference_mv')
     print(passivity_time_domain_difference_mv)
     
     # Calculate final metrics
-    causality_metric = np.round(1000 * np.linalg.norm(causality_time_domain_difference_mv, ord=2) * 100) / 100
-    reciprocity_metric = np.round(1000 * np.linalg.norm(reciprocity_time_domain_difference_mv, ord=2) * 100) / 100
-    passivity_metric = np.round(1000 * np.linalg.norm(passivity_time_domain_difference_mv, ord=2) * 100) / 100
+    causality_metric = np.round(1000 * np.linalg.norm(causality_time_domain_difference_mv, ord=2) * 1000) / 1000
+    reciprocity_metric = np.round(1000 * np.linalg.norm(reciprocity_time_domain_difference_mv, ord=2) * 1000) / 1000
+    passivity_metric = np.round(1000 * np.linalg.norm(passivity_time_domain_difference_mv, ord=2) * 1000) / 1000
     
     return causality_metric, reciprocity_metric, passivity_metric
 
@@ -457,7 +447,8 @@ def get_gaussian_pulse(dt: float, data_rate: float, N: int, rise_time_per: float
     
     GG = np.zeros_like(G)
     for i in range(len(t)):
-        GG[i] = G[(i + middle - start_point) % len(t)]
+        #GG[i] = G[(i + middle - start_point) % len(t)] # conversion initial version
+        GG[i] = G[(i + middle - start_point) % len(t)] # more similar to ieee code
     
     # Convert to frequency domain
     pulse = np.fft.fft(GG)
