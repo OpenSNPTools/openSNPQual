@@ -3,8 +3,8 @@
 ## Change log
 **2025-08-14:** added correlation to IEEE370 Time Domain metrics.
 Status:
-CAUSALITY = perfect
-PASSIVITY = delta 0-50%, unclear
+CAUSALITY = perfect;
+PASSIVITY = delta 0-50%, unclear;
 RECIPROCITY = delta &lt; 2.5%, close enough for now. 
 
 TODO: during debug, create_passive_matrix(), create_reciprocal_matrix(), create_causal_matrix() give the same output. However, get_time_domain_matrix() and inside it get_gaussian_pulse() doesn't give the same result. Something to do with indexing of G and GG arrays? Needs more work for more exact match.
@@ -13,6 +13,16 @@ TODO: during debug, create_passive_matrix(), create_reciprocal_matrix(), create_
 
 **2025-07-17:** added correlation to IEE370 Freq domain all metrics; status: OK. All 4 sample s-parameters correlate.
 
+---
+
+## Results validation and correlation presented in IEEE EMC + SIPI Symposium 2025
+
+![ ](./results_comparison_FD_ieee_emcs_2025.png  "Frequency Domain Quality Metrics")
+
+
+![ ](./results_comparison_TD_ieee_emcs_2025.png  "Time Domain Quality Metrics")
+
+---
 ## pcb_stripline_119mm.s2p
 
 Frequency domain result comparison:
