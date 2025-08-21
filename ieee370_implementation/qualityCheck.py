@@ -10,6 +10,11 @@ This is a Python adaptation of Octave code from IEEE 370 code:
 https://opensource.ieee.org/elec-char/ieee-370/-/blob/master/TG3/qualityCheck.m
 % Original MATLAB code Copyright (c) 2017, IEEE 370 Open Source Authors (See IEEE370_AUTHORS.md)
 
+SPDX-License-Identifier: BSD-3-Clause
 """
 
 #TODO!!
+
+def qualityCheck(Sdata, Nf, port_num):
+    
+    return None

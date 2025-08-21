@@ -14,11 +14,13 @@ Output: [freq, Sdata, npts] where
         freq - array of frequency points
         Sdata - sparam MATRIX form of numpy array
         npts - size of freq array
-
+        
+        
+SPDX-License-Identifier: BSD-3-Clause
 """
 
 import skrf as rf
-import numy as np
+import numpy as np
 from typing import List, Dict, Tuple, Optional
 
 
@@ -26,8 +28,12 @@ def fromtouchn(filepath: str) -> Optional[rf.Network]:
     """Load touchstone file using scikit-rf"""
     try:
         network = rf.Network(filepath)
-        #TODO implement extraction of freq, Sdata and npts
-        return network
+        
+        freq = network.f
+        npts = len(freq)
+        Sdata = np.transpose(network.s, (1, 2, 0)) # Note: transposing the matrix matches the data structure used in IEEE370 code [m,n, freq]
+
+        return freq, Sdata, npts
     
     except Exception as e:
         print(f"Error loading {filepath}: {str(e)}")
