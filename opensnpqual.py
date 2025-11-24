@@ -22,6 +22,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading
 from datetime import datetime
+import webbrowser
 
 # For S-parameter processing
 import skrf as rf
@@ -30,6 +31,7 @@ from scipy.interpolate import interp1d
 
 # Version information
 OPENSNPQUAL_VERSION = "v0.1"  # Change xx to your desired version number
+
 
 class SParameterQualityMetrics:
     """Calculate S-parameter quality metrics based on IEEE P370 standards"""
@@ -311,6 +313,35 @@ class OpenSNPQualCLI:
                 
                 f.write(f"| {' | '.join(row)} |\n")
 
+class CustomInfoDialog:
+    """Custom dialog with clickable links and styled text"""
+    
+    def __init__(self, parent, title, content_func):
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title(title)
+        self.dialog.geometry("500x450")
+        self.dialog.resizable(False, False)
+        
+        # Make dialog modal
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        
+        # Create content frame
+        frame = ttk.Frame(self.dialog, padding="20")
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Let the content function build the dialog content
+        content_func(frame)
+        
+        # Add OK button
+        ok_button = ttk.Button(self.dialog, text="OK", command=self.dialog.destroy)
+        ok_button.pack(side=tk.BOTTOM, pady=10)
+        
+        # Center dialog on parent
+        self.dialog.update_idletasks()
+        x = (self.dialog.winfo_screenwidth() // 2) - (self.dialog.winfo_width() // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (self.dialog.winfo_height() // 2)
+        self.dialog.geometry(f"+{x}+{y}")
 
 class OpenSNPQualGUI:
     """GUI for OpenSNPQual"""
@@ -612,56 +643,159 @@ class OpenSNPQualGUI:
         self.status_label.config(text="Ready")
     
     def show_ieee370_correlation(self):
-        """Show IEEE 370 correlation information"""
-        messagebox.showinfo(
-            "Correlation to IEEE370",
-            "OpenSNPQual implements IEEE 370 quality metrics in Python:\n\n" +
-            "• Frequency Domain\n" +
-            "• Time Domain\n\n" +
-            "Correlation has been validated against reference MATLAB implementation:\n" +
-            "https://github.com/OpenSNPTools/openSNPQual/blob/IEEEP370_Qual_Correlation/example_touchstone/sparams_info.md"
-        )
+        """Show IEEE P370 correlation information"""
+        def create_content(parent):
+            # Title
+            title_label = tk.Label(parent, text="Correlation to IEEE 370", 
+                                font=("Arial", 14, "bold"))
+            title_label.pack(pady=(0, 10))
+            
+            # Main text
+            text = tk.Text(parent, wrap=tk.WORD, height=10, width=50, 
+                        font=("Arial", 10))
+            text.pack(fill=tk.BOTH, expand=True)
+            
+            # Insert content with formatting
+            text.insert("1.0", "OpenSNPQual implements IEEE 370 quality metrics in Python:\n\n")
+            text.insert("end", "• ", "bullet")
+            text.insert("end", "Frequency Domain:", "bold")
+            text.insert("end", " fully correlated to 370 code\n")
+            text.insert("end", "• ", "bullet")
+            text.insert("end", "Time Domain:", "bold")
+            text.insert("end", " partially correlated to IEEE 370 time-domain metrics\n\n")
+            text.insert("end", "Results have been validated against original IEEE370 MATLAB code.\n\n")
+            text.insert("end", "For more information, visit:\n")
+            text.insert("end", "Correlation Report", "link")
+            
+            # Configure tags
+            text.tag_config("bold", font=("Arial", 10, "bold"))
+            text.tag_config("bullet", foreground="#666666")
+            text.tag_config("link", foreground="blue", underline=True)
+            text.tag_bind("link", "<Button-1>", 
+                        lambda e: webbrowser.open("https://github.com/OpenSNPTools/openSNPQual/blob/IEEEP370_Qual_Correlation/example_touchstone/sparams_info.md"))
+            text.tag_bind("link", "<Enter>", lambda e: text.config(cursor="hand2"))
+            text.tag_bind("link", "<Leave>", lambda e: text.config(cursor=""))
+            
+            text.config(state=tk.DISABLED)
+        
+        CustomInfoDialog(self.root, "Correlation to IEEE370", create_content)
 
     def report_bug(self):
-        """Open bug report dialog or link"""
-        import webbrowser
-        # You can either open a URL or show a dialog
-        # Option 1: Open GitHub issues page (replace with your actual URL)
-        # We do both :)
-        webbrowser.open("https://github.com/OpenSNPTools/openSNPQual/issues")
+        """Open bug report dialog with clickable links"""
+        def create_content(parent):
+            # Title
+            title_label = tk.Label(parent, text="Report a Bug", 
+                                font=("Arial", 14, "bold"))
+            title_label.pack(pady=(0, 10))
+            
+            # Main text
+            text = tk.Text(parent, wrap=tk.WORD, height=12, width=50, 
+                        font=("Arial", 10))
+            text.pack(fill=tk.BOTH, expand=True)
+            
+            text.insert("1.0", "To report a bug:\n\n")
+            
+            # Email option
+            text.insert("end", "1. E-mail: ", "bold")
+            text.insert("end", "giorgi.snp [at] pm [dot] me", "email_link")
+            text.insert("end", "\n\n")
+            
+            # GitHub option
+            text.insert("end", "or\n\n")
+            text.insert("end", "2. GitHub Issues: ", "bold")
+            text.insert("end", "OpenSNPQual Issues Page", "github_link")
+            text.insert("end", "\n")
+            text.insert("end", "https://github.com/OpenSNPTools/openSNPQual/issues")
+            text.insert("end", "\n\n")
+            
+            
+            text.insert("end", "Please include:\n", "bold")
+            text.insert("end", "  • OpenSNPQual version\n")
+            text.insert("end", "  • Description of the issue\n")
+            text.insert("end", "  • Steps to reproduce\n")
+            text.insert("end", "  • Error messages (if any)\n")
+            text.insert("end", "  • Sample files (if applicable)")
+            
+            # Configure tags
+            text.tag_config("bold", font=("Arial", 10, "bold"))
+            text.tag_config("email_link", foreground="blue", underline=True)
+            text.tag_config("github_link", foreground="blue", underline=True)
+            
+            # Bind click events
+            text.tag_bind("email_link", "<Button-1>", 
+                        lambda e: webbrowser.open("mailto:giorgi.snp@pm.me?subject=OpenSNPQual%20Bug%20Report"))
+            text.tag_bind("github_link", "<Button-1>", 
+                        lambda e: webbrowser.open("https://github.com/OpenSNPTools/openSNPQual/issues"))
+            
+            # Hover effects
+            text.tag_bind("email_link", "<Enter>", lambda e: text.config(cursor="hand2"))
+            text.tag_bind("email_link", "<Leave>", lambda e: text.config(cursor=""))
+            text.tag_bind("github_link", "<Enter>", lambda e: text.config(cursor="hand2"))
+            text.tag_bind("github_link", "<Leave>", lambda e: text.config(cursor=""))
+            
+            text.config(state=tk.DISABLED)
         
-        # Option 2: Show dialog with instructions
-        messagebox.showinfo(
-            "Report a Bug",
-            "To report a bug:\n\n" +
-            "1. E-mail: giorgi.snp [at] pm.me\n" +
-            "or\n" +
-            "2. GitHub Issues: https://github.com/OpenSNPTools/openSNPQual/issues \n\n" +
-            "Please include:\n" +
-            "• OpenSNPQual version\n" +
-            "• Description of the issue\n" +
-            "• Steps to reproduce\n" +
-            "• Error messages (if any)\n"
-            "• Consider including the s-parameter"
-        )
+        CustomInfoDialog(self.root, "Report a Bug", create_content)
 
     def show_about(self):
-        """Show about dialog"""
-        messagebox.showinfo(
-            "About OpenSNPQual",
-            f"OpenSNPQual {OPENSNPQUAL_VERSION}\n" +
-            "A simple S-Parameter Quality Checker\n\n" +
-            "A tool for evaluating S-parameter quality metrics,\n" +
-            "based on IEEE 370 standard:\n" +
-            "https://opensource.ieee.org/elec-char/ieee-370/ \n\n" +
-            "S-parameter Quality Metrics:\n" +
-            "• Passivity (PQM)\n" +
-            "• Reciprocity (RQM)\n" +
-            "• Causality (CQM)\n" +
-            "• Frequency and Time domain analysis\n\n" +
-            "License: BSD 3-Clause\n" +
-            "© 2025 Giorgi Maghlakelidze, OpenSNP Contributors, IEEE370 Contributors"
-        )
+        """Show about dialog with styled text"""
+        def create_content(parent):
+            # Logo/Title
+            title_label = tk.Label(parent, text=f"OpenSNPQual {OPENSNPQUAL_VERSION}", 
+                                font=("Arial", 16, "bold"), foreground="#0066cc")
+            title_label.pack(pady=(0, 5))
+            
+            subtitle_label = tk.Label(parent, text="A Simple S-Parameter Quality Checker", 
+                                    font=("Arial", 10, "italic"))
+            subtitle_label.pack(pady=(0, 15))
+            
+            # Main text
+            text = tk.Text(parent, wrap=tk.WORD, height=12, width=50, 
+                        font=("Arial", 10))
+            text.pack(fill=tk.BOTH, expand=True)
+            
+            text.insert("1.0", "A GUI tool for evaluating S-parameter quality metrics\n")
+            text.insert("end", "based on IEEE 370 standard:\n")
+            text.insert("end", "https://opensource.ieee.org/elec-char/ieee-370/", "website_link_370")
+            text.insert("end", " \n\n")
+            
+            
+            text.insert("end", "S-parameter Quality Metrics and features:\n", "heading")
+            text.insert("end", "  • Passivity (PQM)\n")
+            text.insert("end", "  • Reciprocity (RQM)\n")
+            text.insert("end", "  • Causality (CQM)\n")
+            text.insert("end", "  • Frequency and Time domain analysis\n")
+            text.insert("end", "  • Batch file processing \n")
+            text.insert("end", "  • Report generation \n\n")
+            
+            text.insert("end", "License: ", "bold")
+            text.insert("end", "BSD 3-Clause\n")
+            text.insert("end", "© 2025 Giorgi Maghlakelidze, OpenSNP Contributors, IEEE370 Contributors\n\n")
+            
+            text.insert("end", "Website: ", "bold")
+            text.insert("end", "https://github.com/OpenSNPTools/openSNPQual/", "website_link")
+            
+            # Configure tags
+            text.tag_config("heading", font=("Arial", 11, "bold"))
+            text.tag_config("bold", font=("Arial", 10, "bold"))
+            text.tag_config("website_link", foreground="blue", underline=True)
+            text.tag_config("website_link_370", foreground="blue", underline=True)
+            
+            # Bind website link
+            text.tag_bind("website_link", "<Button-1>", 
+                        lambda e: webbrowser.open("https://github.com/OpenSNPTools/openSNPQual/"))
+            text.tag_bind("website_link", "<Enter>", lambda e: text.config(cursor="hand2"))
+            text.tag_bind("website_link", "<Leave>", lambda e: text.config(cursor=""))
+            
+            # Bind website link
+            text.tag_bind("website_link_370", "<Button-1>", 
+                        lambda e: webbrowser.open("https://opensource.ieee.org/elec-char/ieee-370/"))
+            text.tag_bind("website_link_370", "<Enter>", lambda e: text.config(cursor="hand2"))
+            text.tag_bind("website_link_370", "<Leave>", lambda e: text.config(cursor=""))
+
+            text.config(state=tk.DISABLED)
+        
+        CustomInfoDialog(self.root, "About OpenSNPQual", create_content)
 
     def run(self):
         """Run the GUI application"""
