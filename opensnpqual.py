@@ -28,6 +28,8 @@ import webbrowser
 import skrf as rf
 from scipy import signal, fft
 from scipy.interpolate import interp1d
+from ieee370_implementation.ieee_p370_quality_freq_domain import quality_check_frequency_domain
+from ieee370_implementation.ieee_p370_quality_time_domain import quality_check
 
 # Version information
 OPENSNPQUAL_VERSION = "v0.1"  # Change xx to your desired version number
@@ -303,8 +305,8 @@ class OpenSNPQualCLI:
                         key = f"{metric}_{domain}"
                         value = result.get(key, -1)
                         
-                        if value < 0:
-                            row.append("❌ Error")
+                        if value == '-' or value < 0:
+                            row.append("❌ n/a")
                         else:
                             level = self.metrics.get_quality_level(metric, value)
                             emoji = {'great': '🟢', 'good': '🔵', 
@@ -354,6 +356,8 @@ class OpenSNPQualGUI:
         self.cli = OpenSNPQualCLI()
         self.file_list = []
         self.results = {}
+
+        self.calculate_time_domain_var = None  # Will be set in setup_ui
         
         self.setup_ui()
         
@@ -397,9 +401,20 @@ class OpenSNPQualGUI:
         button_frame = ttk.Frame(main_frame)
         button_frame.grid(row=0, column=0, columnspan=2, pady=5, sticky=tk.W)
         
-        ttk.Button(button_frame, text="Load SNP Files", command=self.load_files).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Load SNPs", command=self.load_files).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Load Folder", command=self.load_folder).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Calculate", command=self.calculate_metrics).pack(side=tk.LEFT, padx=5)
+        
+        # Add the checkbox for time domain calculation
+        self.calculate_time_domain_var = tk.BooleanVar(value=False)  # Default unchecked
+        self.time_domain_checkbox = ttk.Checkbutton(
+            button_frame, 
+            text="Include TIME DOMAIN",
+            variable=self.calculate_time_domain_var,
+            command=self.on_time_domain_toggle
+        )
+        self.time_domain_checkbox.pack(side=tk.LEFT, padx=15)
+        
         ttk.Button(button_frame, text="Clear", command=self.clear_all).pack(side=tk.LEFT, padx=5)
         
         # Progress bar
@@ -461,6 +476,13 @@ class OpenSNPQualGUI:
         self.tree.tag_configure('bad', foreground='red')
         self.tree.tag_configure('error', foreground='gray')
     
+    def on_time_domain_toggle(self):
+        """Handle time domain calculation toggle"""
+        if self.calculate_time_domain_var.get():
+            self.status_label.config(text="Time domain calculation enabled")
+        else:
+            self.status_label.config(text="Time domain calculation disabled")
+
     def load_files(self):
         """Load S-parameter files using file dialog"""
         files = filedialog.askopenfilenames(
@@ -522,17 +544,26 @@ class OpenSNPQualGUI:
         self.status_label.config(text="Calculating...")
         self.progress_var.set(0)
         
+        # Check if time domain calculation is enabled
+        calculate_time_domain = self.calculate_time_domain_var.get()
+        
         # Create temporary CSV file
         temp_csv = "temp_input.csv"
         with open(temp_csv, 'w', newline='') as f:
             writer = csv.writer(f)
             for filepath in self.file_list:
                 writer.writerow([filepath])
-        
+
         # Process files
         total_files = len(self.file_list)
         for i, filepath in enumerate(self.file_list):
-            result = self.cli.metrics.evaluate_file(filepath)
+            if calculate_time_domain:
+                # Use the full evaluation with IEEE P370 time domain
+                result = self.evaluate_file_with_time_domain(filepath)
+            else:
+                # Use frequency domain only
+                result = self.evaluate_file_frequency_only(filepath)
+            
             self.results[filepath] = result
             
             # Update progress
@@ -571,8 +602,8 @@ class OpenSNPQualGUI:
                         key = f"{metric}_{domain}"
                         value = result.get(key, -1)
                         
-                        if value < 0:
-                            values.append("Error")
+                        if value == '-' or value < 0:
+                            values.append("n/a")
                         else:
                             level = self.cli.metrics.get_quality_level(metric, value)
                             # Use Unicode symbols for quality levels
@@ -796,6 +827,92 @@ class OpenSNPQualGUI:
             text.config(state=tk.DISABLED)
         
         CustomInfoDialog(self.root, "About OpenSNPQual", create_content)
+
+    def evaluate_file_with_time_domain(self, filepath: str) -> Dict[str, any]:
+        """Evaluate file with both frequency and time domain using IEEE P370"""
+        
+        results = {'filename': os.path.basename(filepath)}
+        
+        try:
+            # Load network
+            network = rf.Network(filepath)
+            freq = network.f
+            sdata = np.transpose(network.s, (1, 2, 0))  # Convert to IEEE P370 format
+            nf = len(freq)
+            port_num = network.nports
+            
+            # Frequency domain metrics
+            causality_freq, reciprocity_freq, passivity_freq = quality_check_frequency_domain(
+                sdata, nf, port_num
+            )
+            
+            # Time domain metrics (with your IEEE P370 parameters)
+            data_rate = 25.0  # You might want to make this configurable
+            sample_per_ui = 64
+            rise_per = 0.35
+            pulse_shape = 1
+            extrapolation_method = 1
+            
+            causality_time_mv, reciprocity_time_mv, passivity_time_mv = quality_check(
+                freq, sdata, port_num, data_rate, sample_per_ui, 
+                rise_per, pulse_shape, extrapolation_method
+            )
+            
+            results.update({
+                'passivity_freq': (100 - passivity_freq) / 100,
+                'passivity_time': passivity_time_mv / 2,  # Divide by 2 as per your test
+                'reciprocity_freq': (100 - reciprocity_freq) / 100,
+                'reciprocity_time': reciprocity_time_mv / 2,
+                'causality_freq': (100 - causality_freq) / 100,
+                'causality_time': causality_time_mv / 2
+            })
+            
+        except Exception as e:
+            results.update({
+                'passivity_freq': -1, 'passivity_time': -1,
+                'reciprocity_freq': -1, 'reciprocity_time': -1,
+                'causality_freq': -1, 'causality_time': -1,
+                'error': str(e)
+            })
+        
+        return results
+
+    def evaluate_file_frequency_only(self, filepath: str) -> Dict[str, any]:
+        """Evaluate file with frequency domain only"""
+        
+        results = {'filename': os.path.basename(filepath)}
+        
+        try:
+            # Load network
+            network = rf.Network(filepath)
+            freq = network.f
+            sdata = np.transpose(network.s, (1, 2, 0))
+            nf = len(freq)
+            port_num = network.nports
+            
+            # Frequency domain metrics only
+            causality_freq, reciprocity_freq, passivity_freq = quality_check_frequency_domain(
+                sdata, nf, port_num
+            )
+            
+            results.update({
+                'passivity_freq': (100 - passivity_freq) / 100,
+                'passivity_time': '-',
+                'reciprocity_freq': (100 - reciprocity_freq) / 100,
+                'reciprocity_time': '-',
+                'causality_freq': (100 - causality_freq) / 100,
+                'causality_time': '-'
+            })
+            
+        except Exception as e:
+            results.update({
+                'passivity_freq': -1, 'passivity_time': '-',
+                'reciprocity_freq': -1, 'reciprocity_time': '-',
+                'causality_freq': -1, 'causality_time': '-',
+                'error': str(e)
+            })
+        
+        return results
 
     def run(self):
         """Run the GUI application"""
