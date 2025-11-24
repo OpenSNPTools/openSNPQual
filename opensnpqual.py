@@ -28,6 +28,8 @@ import skrf as rf
 from scipy import signal, fft
 from scipy.interpolate import interp1d
 
+# Version information
+OPENSNPQUAL_VERSION = "v0.1"  # Change xx to your desired version number
 
 class SParameterQualityMetrics:
     """Calculate S-parameter quality metrics based on IEEE P370 standards"""
@@ -315,7 +317,7 @@ class OpenSNPQualGUI:
     
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("OpenSNPQual - S-Parameter Quality Evaluation")
+        self.root.title(f"OpenSNPQual {OPENSNPQUAL_VERSION}:  Simple Quality Checker")
         self.root.geometry("1200x600")
         
         self.cli = OpenSNPQualCLI()
