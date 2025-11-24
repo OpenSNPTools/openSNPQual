@@ -317,7 +317,7 @@ class OpenSNPQualGUI:
     
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title(f"OpenSNPQual {OPENSNPQUAL_VERSION}:  Simple Quality Checker")
+        self.root.title(f"OpenSNPQual {OPENSNPQUAL_VERSION}:  A Simple Quality Checker")
         self.root.geometry("1200x600")
         
         self.cli = OpenSNPQualCLI()
@@ -350,6 +350,14 @@ class OpenSNPQualGUI:
         edit_menu.add_command(label="Copy Table", command=self.copy_table_to_clipboard)
         edit_menu.add_command(label="Clear All", command=self.clear_all)
         
+        # Add this after the Edit menu
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="Correlation to IEEE370", command=self.show_ieee370_correlation)
+        help_menu.add_command(label="Report a BUG", command=self.report_bug)
+        help_menu.add_separator()
+        help_menu.add_command(label="About OpenSNPQual", command=self.show_about)
+
         # Main frame
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -603,6 +611,58 @@ class OpenSNPQualGUI:
         self.progress_var.set(0)
         self.status_label.config(text="Ready")
     
+    def show_ieee370_correlation(self):
+        """Show IEEE 370 correlation information"""
+        messagebox.showinfo(
+            "Correlation to IEEE370",
+            "OpenSNPQual implements IEEE 370 quality metrics in Python:\n\n" +
+            "• Frequency Domain\n" +
+            "• Time Domain\n\n" +
+            "Correlation has been validated against reference MATLAB implementation:\n" +
+            "https://github.com/OpenSNPTools/openSNPQual/blob/IEEEP370_Qual_Correlation/example_touchstone/sparams_info.md"
+        )
+
+    def report_bug(self):
+        """Open bug report dialog or link"""
+        import webbrowser
+        # You can either open a URL or show a dialog
+        # Option 1: Open GitHub issues page (replace with your actual URL)
+        # We do both :)
+        webbrowser.open("https://github.com/OpenSNPTools/openSNPQual/issues")
+        
+        # Option 2: Show dialog with instructions
+        messagebox.showinfo(
+            "Report a Bug",
+            "To report a bug:\n\n" +
+            "1. E-mail: giorgi.snp [at] pm.me\n" +
+            "or\n" +
+            "2. GitHub Issues: https://github.com/OpenSNPTools/openSNPQual/issues \n\n" +
+            "Please include:\n" +
+            "• OpenSNPQual version\n" +
+            "• Description of the issue\n" +
+            "• Steps to reproduce\n" +
+            "• Error messages (if any)\n"
+            "• Consider including the s-parameter"
+        )
+
+    def show_about(self):
+        """Show about dialog"""
+        messagebox.showinfo(
+            "About OpenSNPQual",
+            f"OpenSNPQual {OPENSNPQUAL_VERSION}\n" +
+            "A simple S-Parameter Quality Checker\n\n" +
+            "A tool for evaluating S-parameter quality metrics,\n" +
+            "based on IEEE 370 standard:\n" +
+            "https://opensource.ieee.org/elec-char/ieee-370/ \n\n" +
+            "S-parameter Quality Metrics:\n" +
+            "• Passivity (PQM)\n" +
+            "• Reciprocity (RQM)\n" +
+            "• Causality (CQM)\n" +
+            "• Frequency and Time domain analysis\n\n" +
+            "License: BSD 3-Clause\n" +
+            "© 2025 Giorgi Maghlakelidze, OpenSNP Contributors, IEEE370 Contributors"
+        )
+
     def run(self):
         """Run the GUI application"""
         self.root.mainloop()
@@ -611,7 +671,7 @@ class OpenSNPQualGUI:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="OpenSNPQual - S-Parameter Quality Evaluation Tool"
+        description=f"OpenSNPQual {OPENSNPQUAL_VERSION}:  A Simple Quality Checker"
     )
     parser.add_argument('--cli', action='store_true', 
                        help='Run in CLI mode')
