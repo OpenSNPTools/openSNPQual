@@ -263,16 +263,23 @@ class OpenSNPQualCLI:
         if not results:
             return
         
-        fieldnames = ['filename', 'passivity_freq', 'passivity_time', 
-                     'reciprocity_freq', 'reciprocity_time',
-                     'causality_freq', 'causality_time']
+        fieldnames = [
+            'filename',
+            'passivity_freq', 'reciprocity_freq', 'causality_freq',
+            'separator',
+            'passivity_time', 'reciprocity_time', 'causality_time',
+        ]
+
         
         with open(output_file, 'w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for result in results:
                 row = {k: result.get(k, '') for k in fieldnames}
+                # Visual separator between FREQ and TIME columns in CSV
+                row['separator'] = ''
                 writer.writerow(row)
+
     
     def save_markdown_results(self, results: List[Dict], output_file: str):
         """Save results to Markdown file with color coding"""
@@ -289,31 +296,42 @@ class OpenSNPQualCLI:
             
             # Results table
             f.write("## Results\n\n")
-            f.write("| Filename | Passivity (Freq) | Passivity (Time) | "
-                   "Reciprocity (Freq) | Reciprocity (Time) | "
-                   "Causality (Freq) | Causality (Time) |\n")
-            f.write("|----------|------------------|------------------|"
-                   "--------------------|--------------------|"
-                   "------------------|-----------------|\n")
+            f.write("| Filename | Passivity (Freq) | Reciprocity (Freq) | Causality (Freq) |  | "
+                    "Passivity (Time) | Reciprocity (Time) | Causality (Time) |\n")
+            f.write("|----------|------------------|--------------------|------------------|----|"
+                    "------------------|--------------------|------------------|\n")
+
             
             for result in results:
+                # First column is always the filename
                 row = [result['filename']]
-                
-                # Add each metric with color coding
+
+                freq_cells = []
+                time_cells = []
+
+                # Add each metric with color coding, grouped by domain
                 for metric in ['passivity', 'reciprocity', 'causality']:
-                    for domain in ['freq', 'time']:
+                    for domain, target_list in [('freq', freq_cells), ('time', time_cells)]:
                         key = f"{metric}_{domain}"
                         value = result.get(key, -1)
-                        
+
                         if value == '-' or value < 0:
-                            row.append("❌ n/a")
+                            target_list.append("❌ n/a")
                         else:
                             level = self.metrics.get_quality_level(metric, value)
-                            emoji = {'great': '🟢', 'good': '🔵', 
-                                   'acceptable': '🟡', 'bad': '🔴'}.get(level, '❌')
-                            row.append(f"{emoji} {value:.4f}")
-                
+                            emoji = {
+                                'great': '🟢',
+                                'good': '🔵',
+                                'acceptable': '🟡',
+                                'bad': '🔴',
+                            }.get(level, '❌')
+                            target_list.append(f"{emoji} {value:.4f}")
+
+                # Insert a blank separator column between FREQ and TIME sections
+                row.extend(freq_cells + [""] + time_cells)
+
                 f.write(f"| {' | '.join(row)} |\n")
+
 
 class CustomInfoDialog:
     """Custom dialog with clickable links and styled text"""
@@ -437,24 +455,43 @@ class OpenSNPQualGUI:
         main_frame.rowconfigure(3, weight=1)
         
         # Create Treeview for table
-        columns = ('passivity_freq', 'passivity_time', 'reciprocity_freq', 
-                  'reciprocity_time', 'causality_freq', 'causality_time')
-        
-        self.tree = ttk.Treeview(table_frame, columns=columns, show='tree headings', height=15)
-        
+        # Columns are organized as: FREQ metrics | separator | TIME metrics
+        columns = (
+            'passivity_freq',
+            'reciprocity_freq',
+            'causality_freq',
+            'separator',          # purely visual spacer
+            'passivity_time',
+            'reciprocity_time',
+            'causality_time',
+        )
+
+        self.tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show='tree headings',
+            height=15,
+        )
+
         # Define column headings
         self.tree.heading('#0', text='SNP File')
         self.tree.heading('passivity_freq', text='Passivity (Freq)')
-        self.tree.heading('passivity_time', text='Passivity (Time)')
         self.tree.heading('reciprocity_freq', text='Reciprocity (Freq)')
-        self.tree.heading('reciprocity_time', text='Reciprocity (Time)')
         self.tree.heading('causality_freq', text='Causality (Freq)')
+        # Separator column has no label – it's just a visual gap
+        self.tree.heading('separator', text='')
+        self.tree.heading('passivity_time', text='Passivity (Time)')
+        self.tree.heading('reciprocity_time', text='Reciprocity (Time)')
         self.tree.heading('causality_time', text='Causality (Time)')
-        
+
         # Configure column widths
         self.tree.column('#0', width=300)
         for col in columns:
-            self.tree.column(col, width=140, anchor=tk.CENTER)
+            if col == 'separator':
+                # Narrow, non-stretching spacer between FREQ and TIME sections
+                self.tree.column(col, width=20, anchor=tk.CENTER, stretch=False)
+            else:
+                self.tree.column(col, width=140, anchor=tk.CENTER)
         
         # Add scrollbars
         vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
@@ -524,8 +561,14 @@ class OpenSNPQualGUI:
                 filename = os.path.basename(filepath)
                 
                 # Add to tree with placeholder values
-                item = self.tree.insert('', 'end', text=filename, 
-                                      values=('-', '-', '-', '-', '-', '-'))
+                # Order: 3×FREQ, separator, 3×TIME
+                item = self.tree.insert(
+                    '',
+                    'end',
+                    text=filename,
+                    values=('-', '-', '-', '', '-', '-', '-'),
+                )
+
                 
         self.status_label.config(text=f"Loaded {len(self.file_list)} files")
     
@@ -596,21 +639,31 @@ class OpenSNPQualGUI:
         for item in self.tree.get_children():
             if self.tree.item(item)['text'] == filename:
                 # Format values with quality indicators
-                values = []
+                # Columns: FREQ metrics (passivity/reciprocity/causality),
+                # then a separator column, then TIME metrics.
+                freq_values = []
+                time_values = []
+
                 for metric in ['passivity', 'reciprocity', 'causality']:
-                    for domain in ['freq', 'time']:
+                    for domain, target_list in [('freq', freq_values), ('time', time_values)]:
                         key = f"{metric}_{domain}"
                         value = result.get(key, -1)
-                        
+
                         if value == '-' or value < 0:
-                            values.append("n/a")
+                            target_list.append("n/a")
                         else:
                             level = self.cli.metrics.get_quality_level(metric, value)
                             # Use Unicode symbols for quality levels
-                            symbol = {'great': '✓', 'good': '○', 
-                                    'acceptable': '△', 'bad': '✗'}.get(level, '?')
-                            values.append(f"{symbol} {value:.4f}")
-                
+                            symbol = {
+                                'great': '✓',
+                                'good': '○',
+                                'acceptable': '△',
+                                'bad': '✗',
+                            }.get(level, '?')
+                            target_list.append(f"{symbol} {value:.4f}")
+
+                # Insert a blank separator between FREQ and TIME sections
+                values = freq_values + [''] + time_values
                 self.tree.item(item, values=values)
                 
                 # Determine overall quality for row coloring
