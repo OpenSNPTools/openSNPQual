@@ -35,16 +35,26 @@ Based on IEEE 370 code, re-implemented in Python using AI coders.
   - Markdown reports with color-coded quality indicators
   - Clipboard support for Excel/PowerPoint integration
 
-## 📊 Quality Metrics Table
+## 📊 Quality Metrics Table - Initial (Frequency Domain) - good for quick check
 
-| Level | Symbol | Passivity (PQM) | Reciprocity (RQM)  | Causality (CQM) | Description |
+| Level | Symbol | Passivity (PQMi) | Reciprocity (RQMi)  | Causality (CQMi) | Description |
 |-------|--------|-----------|-----------|-----------|-------------|
-| 🟢 Great | ✓ | [99.9, 100] | [99.9, 100]  | [80, 100] | Excellent quality, suitable for critical applications |
-| 🔵 Acceptable | ○ | [99, 99.9) | [99, 99.9) | [50, 80) | OK quality, may not be suitable for sensitive applications like de-embedding |
-| 🟡 Uncertain | △ | [80, 99) | [80, 99) | [20, 50) | Marginal quality, unlikely to be reliable |
-| 🔴 Bad | ✗ | [0, 80) | [0, 80) | [0, 20) | Poor quality, do not use! |
+| 🟢 Good | ✓ | (99.9, 100] | (99.9, 100]  | (80, 100] | Excellent quality, suitable for critical applications |
+| 🔵 Acceptable | ○ | (99, 99.9] | (99, 99.9] | (50, 80] | OK quality, may not be suitable for sensitive applications like de-embedding |
+| 🟡 Inconclusive | △ | (80, 99] | (80, 99] | (20, 50] | Marginal quality, unlikely to be reliable |
+| 🔴 POOR | ✗ | [0, 80] | [0, 80] | [0, 20] | Poor quality, do not use! Re-measurement (+ VNA recalibration) recommended |
 
-Reference [here](https://www.simberian.com/Presentations/Shlepnev_S_ParameterQualityMetrics_July2014_final.pdf)
+## 📊 Quality Metrics Table - Application-based (Time Domain) - rigorously computed
+
+| Level | Symbol | Passivity (PQMa) | Reciprocity (RQMa)  | Causality (CQMa) | Description |
+|-------|--------|-----------|-----------|-----------|-------------|
+| 🟢 Good | ✓ | [0 mV, 5 mV) | [0 mV, 5 mV) | [0 mV, 5 mV) | Excellent quality, suitable for critical applications |
+| 🔵 Acceptable | ○ | [5 mV, 10 mV) | [5 mV, 10 mV) | [5 mV, 10 mV) | OK quality, may not be suitable for sensitive applications like de-embedding |
+| 🟡 Inconclusive | △ | [10 mV, 15 mV) | [10 mV, 15 mV) | [10 mV, 15 mV) | Marginal quality, unlikely to be reliable |
+| 🔴 POOR | ✗ | [15 mV, +∞) | [15 mV, +∞) | [15 mV, +∞) | Poor quality, do not use! Re-measurement (+ VNA recalibration) recommended |
+
+Reference:"[IEEE Standard for Electrical Characterization of Printed Circuit Board and Related Interconnects at Frequencies up to 50 GHz,](https://ieeexplore.ieee.org/document/9316329/)" in IEEE Std 370-2020 , vol., no., pp.1-147, 8 Jan. 2021, doi: 10.1109/IEEESTD.2021.9316329. 
+
 
 ## 🔧 Installation
 
