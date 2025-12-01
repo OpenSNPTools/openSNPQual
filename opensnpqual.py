@@ -39,12 +39,52 @@ class SParameterQualityMetrics:
     """Calculate S-parameter quality metrics based on IEEE P370 standards"""
     
     def __init__(self):
+        # -------------------------------------------------------------------
+        # Initial (Frequency-domain) thresholds in %, higher = better
+        # PQMi/RQMi
+        #   GOOD:         (99.9, 100]
+        #   ACCEPTABLE:   (99, 99.9]
+        #   INCONCLUSIVE: (80, 99]
+        #   POOR:         [0, 80]
+        #
+        # CQMi
+        #   GOOD:         (80, 100]
+        #   ACCEPTABLE:   (50, 80]
+        #   INCONCLUSIVE: (20, 50]
+        #   POOR:         [0, 20]
+        # -------------------------------------------------------------------
         self.freq_thresholds = {
-            'passivity': {'great': 0.01, 'good': 0.05, 'acceptable': 0.1, 'bad': float('inf')},
-            'reciprocity': {'great': 0.01, 'good': 0.05, 'acceptable': 0.1, 'bad': float('inf')},
-            'causality': {'great': 0.01, 'good': 0.05, 'acceptable': 0.1, 'bad': float('inf')}
+            'passivity':    {'good': 99.9, 'acceptable': 99.0, 'inconclusive': 80.0},
+            'reciprocity':  {'good': 99.9, 'acceptable': 99.0, 'inconclusive': 80.0},
+            'causality':    {'good': 80.0,  'acceptable': 50.0, 'inconclusive': 20.0},
+        }
+
+        # -------------------------------------------------------------------
+        # Application-based (Time-domain) thresholds in mV, lower = better
+        # PQMa/RQMa/CQMa
+        #   GOOD:         [0, 5)
+        #   ACCEPTABLE:   [5, 10)
+        #   INCONCLUSIVE: [10, 15)
+        #   POOR:         [15, +∞)
+        # -------------------------------------------------------------------
+        self.time_thresholds = {
+            'passivity':    {'good': 5.0, 'acceptable': 10.0, 'inconclusive': 15.0},
+            'reciprocity':  {'good': 5.0, 'acceptable': 10.0, 'inconclusive': 15.0},
+            'causality':    {'good': 5.0, 'acceptable': 10.0, 'inconclusive': 15.0},
         }
     
+    def get_quality_level(self, metric_name: str, value: float, domain: str = "freq") -> str:
+            """
+            Backwards-compatible wrapper used by older code paths (e.g. save_markdown_results).
+
+            domain = "freq" → use Initial (frequency-domain) thresholds (PQM/RQM/CQM in %)
+            domain = "time" → use Application-based (time-domain) thresholds (mV)
+            """
+            if domain == "time":
+                return self.get_time_quality_level(metric_name, value)
+            else:
+                return self.get_freq_quality_level(metric_name, value)
+
     def load_touchstone(self, filepath: str) -> Optional[rf.Network]:
         """Load touchstone file using scikit-rf"""
         try:
@@ -175,21 +215,44 @@ class SParameterQualityMetrics:
             print(f"Error in time domain conversion: {str(e)}")
             return None
     
-    def get_quality_level(self, metric_name: str, value: float) -> str:
-        """Determine quality level based on thresholds"""
-        if value < 0:  # Error indicator
+
+    def get_freq_quality_level(self, metric_name: str, value: float) -> str:
+        """Return GOOD / ACCEPTABLE / INCONCLUSIVE / POOR for % metrics."""
+        if value < 0:
             return "error"
-        
-        thresholds = self.freq_thresholds.get(metric_name, self.freq_thresholds['passivity'])
-        
-        if value <= thresholds['great']:
-            return "great"
-        elif value <= thresholds['good']:
+
+        t = self.freq_thresholds[metric_name]
+        # thresholds store lower bounds
+        good = t['good']
+        acceptable = t['acceptable']
+        inconclusive = t['inconclusive']
+
+        if value > good:
             return "good"
-        elif value <= thresholds['acceptable']:
+        elif value > acceptable:
             return "acceptable"
+        elif value > inconclusive:
+            return "inconclusive"
         else:
-            return "bad"
+            return "poor"
+
+
+    def get_time_quality_level(self, metric_name: str, value: float) -> str:
+        """Return GOOD / ACCEPTABLE / INCONCLUSIVE / POOR for time (mV)."""
+        if value < 0:
+            return "error"
+
+        t = self.time_thresholds[metric_name]
+        # thresholds store upper bounds
+        if value < t['good']:
+            return "good"
+        elif value < t['acceptable']:
+            return "acceptable"
+        elif value < t['inconclusive']:
+            return "inconclusive"
+        else:
+            return "poor"
+
     
     def evaluate_file(self, filepath: str) -> Dict[str, any]:
         """Evaluate all quality metrics for a single file"""
@@ -284,20 +347,36 @@ class OpenSNPQualCLI:
     def save_markdown_results(self, results: List[Dict], output_file: str):
         """Save results to Markdown file with color coding"""
         with open(output_file, 'w') as f:
-            f.write("# OpenSNPQual - S-Parameter Quality Report\n\n")
+            f.write(f"# OpenSNPQual {OPENSNPQUAL_VERSION}:  A Simple Quality Checker -- REPORT\n\n")
             f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             
             # Quality level legend
-            f.write("## Quality Levels\n")
-            f.write("- 🟢 **Great**: < 0.01\n")
-            f.write("- 🔵 **Good**: 0.01 - 0.05\n")
-            f.write("- 🟡 **Acceptable**: 0.05 - 0.1\n")
-            f.write("- 🔴 **Bad**: > 0.1\n\n")
             
+            f.write("## 📊 Quality Metrics Table - Initial (Frequency Domain) - good for quick check\n")
+            f.write("\n")
+            f.write("| Level | Symbol | Passivity (PQMi) | Reciprocity (RQMi)  | Causality (CQMi) | Description |\n")
+            f.write("|-------|--------|-----------|-----------|-----------|-------------|\n")
+            f.write("| 🟢 Good | ✓ | (99.9, 100] | (99.9, 100]  | (80, 100] | Excellent quality, suitable for critical applications |\n")
+            f.write("| 🔵 Acceptable | ○ | (99, 99.9] | (99, 99.9] | (50, 80] | OK quality, may not be suitable for sensitive applications like de-embedding |\n")
+            f.write("| 🟡 Inconclusive | △ | (80, 99] | (80, 99] | (20, 50] | Marginal quality, unlikely to be reliable |\n")
+            f.write("| 🔴 POOR | ✗ | [0, 80] | [0, 80] | [0, 20] | Poor quality, do not use! Re-measurement (+ VNA recalibration) recommended |\n")
+            f.write("\n")
+            f.write("## 📊 Quality Metrics Table - Application-based (Time Domain) - rigorously computed\n")
+            f.write("\n")
+            f.write("| Level | Symbol | Passivity (PQMa) | Reciprocity (RQMa)  | Causality (CQMa) | Description |\n")
+            f.write("|-------|--------|-----------|-----------|-----------|-------------|\n")
+            f.write("| 🟢 Good | ✓ | [0 mV, 5 mV) | [0 mV, 5 mV) | [0 mV, 5 mV) | Excellent quality, suitable for critical applications |\n")
+            f.write("| 🔵 Acceptable | ○ | [5 mV, 10 mV) | [5 mV, 10 mV) | [5 mV, 10 mV) | OK quality, may not be suitable for sensitive applications like de-embedding |\n")
+            f.write("| 🟡 Inconclusive | △ | [10 mV, 15 mV) | [10 mV, 15 mV) | [10 mV, 15 mV) | Marginal quality, unlikely to be reliable |\n")
+            f.write("| 🔴 POOR | ✗ | [15 mV, +∞) | [15 mV, +∞) | [15 mV, +∞) | Poor quality, do not use! Re-measurement (+ VNA recalibration) recommended |\n")
+            f.write("\n")
+            f.write("Reference:\"[IEEE Standard for Electrical Characterization of Printed Circuit Board and Related Interconnects at Frequencies up to 50 GHz,](https://ieeexplore.ieee.org/document/9316329/)\" in IEEE Std 370-2020 , vol., no., pp.1-147, 8 Jan. 2021, doi: 10.1109/IEEESTD.2021.9316329. \n")
+            f.write("\n")
+                    
             # Results table
             f.write("## Results\n\n")
-            f.write("| Filename | Passivity (Freq) | Reciprocity (Freq) | Causality (Freq) |  | "
-                    "Passivity (Time) | Reciprocity (Time) | Causality (Time) |\n")
+            f.write("| Filename | Passivity (PQMi, Freq) | Reciprocity (RQMi, Freq) | Causality (CQMi, Freq) |  | "
+                    "Passivity (PQMa, Time) | Reciprocity (RQMa, Time) | Causality (CQMa, Time) |\n")
             f.write("|----------|------------------|--------------------|------------------|----|"
                     "------------------|--------------------|------------------|\n")
 
@@ -318,14 +397,21 @@ class OpenSNPQualCLI:
                         if value == '-' or value < 0:
                             target_list.append("❌ n/a")
                         else:
-                            level = self.metrics.get_quality_level(metric, value)
+                            if domain == 'freq':
+                                # Initial (Frequency Domain) classifier in %
+                                level = self.metrics.get_freq_quality_level(metric, value)
+                            else:
+                                # Application-based (Time Domain) classifier in mV
+                                level = self.metrics.get_time_quality_level(metric, value)
+
                             emoji = {
-                                'great': '🟢',
-                                'good': '🔵',
-                                'acceptable': '🟡',
-                                'bad': '🔴',
+                                'good':         '🟢',
+                                'acceptable':   '🔵',
+                                'inconclusive': '🟡',
+                                'poor':         '🔴',
+                                'error':        '❌',
                             }.get(level, '❌')
-                            target_list.append(f"{emoji} {value:.4f}")
+                            target_list.append(f"{emoji} {value:.1f}")
 
                 # Insert a blank separator column between FREQ and TIME sections
                 row.extend(freq_cells + [""] + time_cells)
@@ -475,14 +561,14 @@ class OpenSNPQualGUI:
 
         # Define column headings
         self.tree.heading('#0', text='SNP File')
-        self.tree.heading('passivity_freq', text='Passivity (Freq)')
-        self.tree.heading('reciprocity_freq', text='Reciprocity (Freq)')
-        self.tree.heading('causality_freq', text='Causality (Freq)')
+        self.tree.heading('passivity_freq', text='Passivity \n(PQMi, Freq)')
+        self.tree.heading('reciprocity_freq', text='Reciprocity \n(RQMi, Freq)')
+        self.tree.heading('causality_freq', text='Causality \n(CQMi, Freq)')
         # Separator column has no label – it's just a visual gap
         self.tree.heading('separator', text='')
-        self.tree.heading('passivity_time', text='Passivity (Time)')
-        self.tree.heading('reciprocity_time', text='Reciprocity (Time)')
-        self.tree.heading('causality_time', text='Causality (Time)')
+        self.tree.heading('passivity_time', text='Passivity \n(PQMa, Time)')
+        self.tree.heading('reciprocity_time', text='Reciprocity \n(RQMa, Time)')
+        self.tree.heading('causality_time', text='Causality \n(CQMa, Time)')
 
         # Configure column widths
         self.tree.column('#0', width=300)
@@ -655,31 +741,48 @@ class OpenSNPQualGUI:
                             level = self.cli.metrics.get_quality_level(metric, value)
                             # Use Unicode symbols for quality levels
                             symbol = {
-                                'great': '✓',
-                                'good': '○',
-                                'acceptable': '△',
-                                'bad': '✗',
+                                'good':         '✓',
+                                'acceptable':   '○',
+                                'inconclusive': '△',
+                                'poor':         '✗',
+                                'error':        '?',
                             }.get(level, '?')
-                            target_list.append(f"{symbol} {value:.4f}")
+                            target_list.append(f"{symbol} {value:.1f}")
 
                 # Insert a blank separator between FREQ and TIME sections
                 values = freq_values + [''] + time_values
                 self.tree.item(item, values=values)
                 
-                # Determine overall quality for row coloring
-                max_value = max([v for k, v in result.items() 
-                               if k.endswith('_freq') or k.endswith('_time')])
-                if max_value < 0:
+                # Determine overall quality for row coloring based on
+                # the worst of ALL metrics that were actually calculated
+                levels = []
+
+                for metric in ['passivity', 'reciprocity', 'causality']:
+                    # Frequency-domain metric (Initial table, %)
+                    v_freq = result.get(f"{metric}_freq", -1)
+                    if isinstance(v_freq, (int, float)) and v_freq >= 0:
+                        levels.append(self.cli.metrics.get_freq_quality_level(metric, v_freq))
+
+                    # Time-domain metric (Application table, mV)
+                    v_time = result.get(f"{metric}_time", -1)
+                    if isinstance(v_time, (int, float)) and v_time >= 0:
+                        levels.append(self.cli.metrics.get_time_quality_level(metric, v_time))
+
+                if not levels:
                     tag = 'error'
-                elif max_value <= 0.01:
-                    tag = 'great'
-                elif max_value <= 0.05:
-                    tag = 'good'
-                elif max_value <= 0.1:
-                    tag = 'acceptable'
                 else:
-                    tag = 'bad'
-                
+                    # Map quality labels to an ordinal, then choose the worst
+                    rank = {
+                        'poor': 0,
+                        'inconclusive': 1,
+                        'acceptable': 2,
+                        'good': 3,
+                        'error': -1,  # optional
+                    }
+                    worst_rank = min(rank.get(lvl, 0) for lvl in levels)
+                    inv_rank = {v: k for k, v in rank.items()}
+                    tag = inv_rank.get(worst_rank, 'poor')
+
                 self.tree.item(item, tags=(tag,))
                 break
     
@@ -912,11 +1015,12 @@ class OpenSNPQualGUI:
             )
             
             results.update({
-                'passivity_freq': (100 - passivity_freq) / 100,
-                'passivity_time': passivity_time_mv / 2,  # Divide by 2 as per your test
-                'reciprocity_freq': (100 - reciprocity_freq) / 100,
+                # Frequency-domain metrics are 0–100 % (IEEE P370 PQMi/RQMi/CQMi)
+                'passivity_freq': passivity_freq,
+                'passivity_time': passivity_time_mv / 2,  # still mV, as before
+                'reciprocity_freq': reciprocity_freq,
                 'reciprocity_time': reciprocity_time_mv / 2,
-                'causality_freq': (100 - causality_freq) / 100,
+                'causality_freq': causality_freq,
                 'causality_time': causality_time_mv / 2
             })
             
@@ -949,13 +1053,15 @@ class OpenSNPQualGUI:
             )
             
             results.update({
-                'passivity_freq': (100 - passivity_freq) / 100,
+                # Frequency-domain metrics are 0–100 % (IEEE P370 PQMi/RQMi/CQMi)
+                'passivity_freq': passivity_freq,     
                 'passivity_time': '-',
-                'reciprocity_freq': (100 - reciprocity_freq) / 100,
+                'reciprocity_freq': reciprocity_freq,
                 'reciprocity_time': '-',
-                'causality_freq': (100 - causality_freq) / 100,
+                'causality_freq': causality_freq,
                 'causality_time': '-'
             })
+
             
         except Exception as e:
             results.update({
