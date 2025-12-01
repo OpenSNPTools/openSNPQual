@@ -348,38 +348,14 @@ class OpenSNPQualCLI:
         """Save results to Markdown file with color coding"""
         with open(output_file, 'w') as f:
             f.write(f"# OpenSNPQual {OPENSNPQUAL_VERSION}:  A Simple Quality Checker -- REPORT\n\n")
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            
-            # Quality level legend
-            
-            f.write("## 📊 Quality Metrics Table - Initial (Frequency Domain) - good for quick check\n")
-            f.write("\n")
-            f.write("| Level | Symbol | Passivity (PQMi) | Reciprocity (RQMi)  | Causality (CQMi) | Description |\n")
-            f.write("|-------|--------|-----------|-----------|-----------|-------------|\n")
-            f.write("| 🟢 Good | ✓ | (99.9, 100] | (99.9, 100]  | (80, 100] | Excellent quality, suitable for critical applications |\n")
-            f.write("| 🔵 Acceptable | ○ | (99, 99.9] | (99, 99.9] | (50, 80] | OK quality, may not be suitable for sensitive applications like de-embedding |\n")
-            f.write("| 🟡 Inconclusive | △ | (80, 99] | (80, 99] | (20, 50] | Marginal quality, unlikely to be reliable |\n")
-            f.write("| 🔴 POOR | ✗ | [0, 80] | [0, 80] | [0, 20] | Poor quality, do not use! Re-measurement (+ VNA recalibration) recommended |\n")
-            f.write("\n")
-            f.write("## 📊 Quality Metrics Table - Application-based (Time Domain) - rigorously computed\n")
-            f.write("\n")
-            f.write("| Level | Symbol | Passivity (PQMa) | Reciprocity (RQMa)  | Causality (CQMa) | Description |\n")
-            f.write("|-------|--------|-----------|-----------|-----------|-------------|\n")
-            f.write("| 🟢 Good | ✓ | [0 mV, 5 mV) | [0 mV, 5 mV) | [0 mV, 5 mV) | Excellent quality, suitable for critical applications |\n")
-            f.write("| 🔵 Acceptable | ○ | [5 mV, 10 mV) | [5 mV, 10 mV) | [5 mV, 10 mV) | OK quality, may not be suitable for sensitive applications like de-embedding |\n")
-            f.write("| 🟡 Inconclusive | △ | [10 mV, 15 mV) | [10 mV, 15 mV) | [10 mV, 15 mV) | Marginal quality, unlikely to be reliable |\n")
-            f.write("| 🔴 POOR | ✗ | [15 mV, +∞) | [15 mV, +∞) | [15 mV, +∞) | Poor quality, do not use! Re-measurement (+ VNA recalibration) recommended |\n")
-            f.write("\n")
-            f.write("Reference:\"[IEEE Standard for Electrical Characterization of Printed Circuit Board and Related Interconnects at Frequencies up to 50 GHz,](https://ieeexplore.ieee.org/document/9316329/)\" in IEEE Std 370-2020 , vol., no., pp.1-147, 8 Jan. 2021, doi: 10.1109/IEEESTD.2021.9316329. \n")
-            f.write("\n")
-                    
+            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")            
+                  
             # Results table
             f.write("## Results\n\n")
             f.write("| Filename | Passivity (PQMi, Freq) | Reciprocity (RQMi, Freq) | Causality (CQMi, Freq) |  | "
                     "Passivity (PQMa, Time) | Reciprocity (RQMa, Time) | Causality (CQMa, Time) |\n")
             f.write("|----------|------------------|--------------------|------------------|----|"
                     "------------------|--------------------|------------------|\n")
-
             
             for result in results:
                 # First column is always the filename
@@ -417,6 +393,29 @@ class OpenSNPQualCLI:
                 row.extend(freq_cells + [""] + time_cells)
 
                 f.write(f"| {' | '.join(row)} |\n")
+            
+            # Quality level legend
+            
+            f.write("## 📊 Quality Metrics Table - Initial (Frequency Domain) - good for quick check\n")
+            f.write("\n")
+            f.write("| Level | Symbol | Passivity (PQMi) | Reciprocity (RQMi)  | Causality (CQMi) | Description |\n")
+            f.write("|-------|--------|-----------|-----------|-----------|-------------|\n")
+            f.write("| 🟢 Good | ✓ | (99.9, 100] | (99.9, 100]  | (80, 100] | Excellent quality, suitable for critical applications |\n")
+            f.write("| 🔵 Acceptable | ○ | (99, 99.9] | (99, 99.9] | (50, 80] | OK quality, may not be suitable for sensitive applications like de-embedding |\n")
+            f.write("| 🟡 Inconclusive | △ | (80, 99] | (80, 99] | (20, 50] | Marginal quality, unlikely to be reliable |\n")
+            f.write("| 🔴 POOR | ✗ | [0, 80] | [0, 80] | [0, 20] | Poor quality, do not use! Re-measurement (+ VNA recalibration) recommended |\n")
+            f.write("\n")
+            f.write("## 📊 Quality Metrics Table - Application-based (Time Domain) - rigorously computed\n")
+            f.write("\n")
+            f.write("| Level | Symbol | Passivity (PQMa) | Reciprocity (RQMa)  | Causality (CQMa) | Description |\n")
+            f.write("|-------|--------|-----------|-----------|-----------|-------------|\n")
+            f.write("| 🟢 Good | ✓ | [0 mV, 5 mV) | [0 mV, 5 mV) | [0 mV, 5 mV) | Excellent quality, suitable for critical applications |\n")
+            f.write("| 🔵 Acceptable | ○ | [5 mV, 10 mV) | [5 mV, 10 mV) | [5 mV, 10 mV) | OK quality, may not be suitable for sensitive applications like de-embedding |\n")
+            f.write("| 🟡 Inconclusive | △ | [10 mV, 15 mV) | [10 mV, 15 mV) | [10 mV, 15 mV) | Marginal quality, unlikely to be reliable |\n")
+            f.write("| 🔴 POOR | ✗ | [15 mV, +∞) | [15 mV, +∞) | [15 mV, +∞) | Poor quality, do not use! Re-measurement (+ VNA recalibration) recommended |\n")
+            f.write("\n")
+            f.write("Reference:\"[IEEE Standard for Electrical Characterization of Printed Circuit Board and Related Interconnects at Frequencies up to 50 GHz,](https://ieeexplore.ieee.org/document/9316329/)\" in IEEE Std 370-2020 , vol., no., pp.1-147, 8 Jan. 2021, doi: 10.1109/IEEESTD.2021.9316329. \n")
+            f.write("\n")
 
 
 class CustomInfoDialog:
