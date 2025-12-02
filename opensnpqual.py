@@ -255,33 +255,142 @@ class SParameterQualityMetrics:
 
     
     def evaluate_file(self, filepath: str) -> Dict[str, any]:
-        """Evaluate all quality metrics for a single file"""
+        """
+        Evaluate all quality metrics for a single file using IEEE P370
+        (both frequency- and time-domain).
+
+        Returns a dict with:
+            - filename
+            - passivity_freq   (PQM_i, %, Initial/Frequency table)
+            - reciprocity_freq (RQM_i, %, Initial/Frequency table)
+            - causality_freq   (CQM_i, %, Initial/Frequency table)
+            - passivity_time   (PQM_a, mV, Application/Time table)
+            - reciprocity_time (RQM_a, mV, Application/Time table)
+            - causality_time   (CQM_a, mV, Application/Time table)
+        """
         results = {'filename': os.path.basename(filepath)}
-        
+
+        # Reuse common Touchstone loader
+        network = self.load_touchstone(filepath)
+        if network is None:
+            # Keep same error pattern as your old code
+            results.update({
+                'passivity_freq':    -1, 'passivity_time':    -1,
+                'reciprocity_freq':  -1, 'reciprocity_time':  -1,
+                'causality_freq':    -1, 'causality_time':    -1,
+                'error': 'Failed to load file',
+            })
+            return results
+
+        try:
+            freq = network.f
+            sdata = np.transpose(network.s, (1, 2, 0))  # (ports, ports, freq)
+            nf = len(freq)
+            port_num = network.nports
+
+            # -----------------------------
+            # Frequency-domain IEEE P370
+            # -----------------------------
+            # Returns % metrics: CQMi, RQMi, PQMi
+            causality_freq, reciprocity_freq, passivity_freq = quality_check_frequency_domain(
+                sdata, nf, port_num
+            )
+
+            # -----------------------------
+            # Time-domain IEEE P370
+            # -----------------------------
+            # Use same defaults as GUI
+            data_rate = 25.0          # Gbps
+            sample_per_ui = 64
+            rise_per = 0.35
+            pulse_shape = 1
+            extrapolation_method = 1
+
+            causality_time_mv, reciprocity_time_mv, passivity_time_mv = quality_check(
+                freq, sdata, port_num,
+                data_rate,
+                sample_per_ui,
+                rise_per,
+                pulse_shape,
+                extrapolation_method,
+            )
+
+            results.update({
+                'passivity_freq':     passivity_freq,
+                'passivity_time':     passivity_time_mv / 2.0,
+                'reciprocity_freq':   reciprocity_freq,
+                'reciprocity_time':   reciprocity_time_mv / 2.0,
+                'causality_freq':     causality_freq,
+                'causality_time':     causality_time_mv / 2.0,
+            })
+
+        except Exception as e:
+            results.update({
+                'passivity_freq':    -1, 'passivity_time':    -1,
+                'reciprocity_freq':  -1, 'reciprocity_time':  -1,
+                'causality_freq':    -1, 'causality_time':    -1,
+                'error': str(e),
+            })
+
+        return results
+
+    def evaluate_file_frequency_only(self, filepath: str) -> Dict[str, any]:
+        """
+        Evaluate file with frequency domain only using IEEE P370.
+
+        Returns:
+            {
+                'filename': <name>,
+                'passivity_freq':   PQMi (%),
+                'passivity_time':   '-',
+                'reciprocity_freq': RQMi (%),
+                'reciprocity_time': '-',
+                'causality_freq':   CQMi (%),
+                'causality_time':   '-',
+                'error':            <str> (optional)
+            }
+        """
+        results = {'filename': os.path.basename(filepath)}
+
+        # Reuse common Touchstone loader
         network = self.load_touchstone(filepath)
         if network is None:
             results.update({
-                'passivity_freq': -1, 'passivity_time': -1,
-                'reciprocity_freq': -1, 'reciprocity_time': -1,
-                'causality_freq': -1, 'causality_time': -1,
-                'error': 'Failed to load file'
+                'passivity_freq':    -1, 'passivity_time':    '-',
+                'reciprocity_freq':  -1, 'reciprocity_time':  '-',
+                'causality_freq':    -1, 'causality_time':    '-',
+                'error': 'Failed to load file',
             })
             return results
-        
-        # Calculate metrics
-        passivity = self.check_passivity(network)
-        reciprocity = self.check_reciprocity(network)
-        causality = self.check_causality(network)
-        
-        results.update({
-            'passivity_freq': passivity['freq_domain'],
-            'passivity_time': passivity['time_domain'],
-            'reciprocity_freq': reciprocity['freq_domain'],
-            'reciprocity_time': reciprocity['time_domain'],
-            'causality_freq': causality['freq_domain'],
-            'causality_time': causality['time_domain']
-        })
-        
+
+        try:
+            freq = network.f
+            sdata = np.transpose(network.s, (1, 2, 0))  # (ports, ports, freq)
+            nf = len(freq)
+            port_num = network.nports
+
+            # Frequency domain metrics only (IEEE P370)
+            causality_freq, reciprocity_freq, passivity_freq = quality_check_frequency_domain(
+                sdata, nf, port_num
+            )
+
+            results.update({
+                'passivity_freq':     passivity_freq,
+                'passivity_time':     '-',
+                'reciprocity_freq':   reciprocity_freq,
+                'reciprocity_time':   '-',
+                'causality_freq':     causality_freq,
+                'causality_time':     '-',
+            })
+
+        except Exception as e:
+            results.update({
+                'passivity_freq':    -1, 'passivity_time':    '-',
+                'reciprocity_freq':  -1, 'reciprocity_time':  '-',
+                'causality_freq':    -1, 'causality_time':    '-',
+                'error': str(e),
+            })
+
         return results
 
 
@@ -291,6 +400,14 @@ class OpenSNPQualCLI:
     def __init__(self):
         self.metrics = SParameterQualityMetrics()
     
+    # NEW convenience wrapper: full IEEE370 (freq + time)
+    def evaluate_file_with_time_domain(self, filepath: str) -> Dict[str, any]:
+        return self.metrics.evaluate_file(filepath)
+
+    # NEW convenience wrapper: freq-only IEEE370
+    def evaluate_file_frequency_only(self, filepath: str) -> Dict[str, any]:
+        return self.metrics.evaluate_file_frequency_only(filepath)
+
     def process_csv(self, input_csv: str, output_prefix: str = None) -> str:
         """Process CSV file containing S-parameter filenames"""
         if output_prefix is None:
@@ -686,19 +803,17 @@ class OpenSNPQualGUI:
         total_files = len(self.file_list)
         for i, filepath in enumerate(self.file_list):
             if calculate_time_domain:
-                # Use the full evaluation with IEEE P370 time domain
-                result = self.evaluate_file_with_time_domain(filepath)
+                # Use full IEEE P370 (freq + time) via CLI/backend
+                result = self.cli.evaluate_file_with_time_domain(filepath)
             else:
-                # Use frequency domain only
-                result = self.evaluate_file_frequency_only(filepath)
-            
+                # Use frequency domain only via CLI/backend
+                result = self.cli.evaluate_file_frequency_only(filepath)
+
             self.results[filepath] = result
-            
-            # Update progress
+
             progress = (i + 1) / total_files * 100
             self.progress_var.set(progress)
-            
-            # Update table in main thread
+
             self.root.after(0, self._update_table_row, filepath, result)
         
         # Clean up temp file
@@ -1034,43 +1149,56 @@ class OpenSNPQualGUI:
         return results
 
     def evaluate_file_frequency_only(self, filepath: str) -> Dict[str, any]:
-        """Evaluate file with frequency domain only"""
-        
+        """
+        Evaluate file with frequency domain only using IEEE P370.
+
+        Returns:
+            {
+                'filename': <name>,
+                'passivity_freq':   PQMi (%),
+                'passivity_time':   '-',
+                'reciprocity_freq': RQMi (%),
+                'reciprocity_time': '-',
+                'causality_freq':   CQMi (%),
+                'causality_time':   '-',
+                'error':            <str> (optional)
+            }
+        """
         results = {'filename': os.path.basename(filepath)}
-        
+
         try:
             # Load network
             network = rf.Network(filepath)
             freq = network.f
-            sdata = np.transpose(network.s, (1, 2, 0))
+            sdata = np.transpose(network.s, (1, 2, 0))  # (ports, ports, freq)
             nf = len(freq)
             port_num = network.nports
-            
-            # Frequency domain metrics only
+
+            # Frequency domain metrics only (IEEE P370)
             causality_freq, reciprocity_freq, passivity_freq = quality_check_frequency_domain(
                 sdata, nf, port_num
             )
-            
+
             results.update({
-                # Frequency-domain metrics are 0–100 % (IEEE P370 PQMi/RQMi/CQMi)
-                'passivity_freq': passivity_freq,     
-                'passivity_time': '-',
-                'reciprocity_freq': reciprocity_freq,
-                'reciprocity_time': '-',
-                'causality_freq': causality_freq,
-                'causality_time': '-'
+                
+                'passivity_freq':     passivity_freq,
+                'passivity_time':     '-',
+                'reciprocity_freq':   reciprocity_freq,
+                'reciprocity_time':   '-',
+                'causality_freq':     causality_freq,
+                'causality_time':     '-',
             })
 
-            
         except Exception as e:
             results.update({
-                'passivity_freq': -1, 'passivity_time': '-',
-                'reciprocity_freq': -1, 'reciprocity_time': '-',
-                'causality_freq': -1, 'causality_time': '-',
-                'error': str(e)
+                'passivity_freq':    -1, 'passivity_time':    '-',
+                'reciprocity_freq':  -1, 'reciprocity_time':  '-',
+                'causality_freq':    -1, 'causality_time':    '-',
+                'error': str(e),
             })
-        
+
         return results
+
 
     def run(self):
         """Run the GUI application"""
