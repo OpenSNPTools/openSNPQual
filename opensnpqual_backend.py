@@ -16,6 +16,10 @@ CLI logic & report generation:
 
 Version string (so both CLI and GUI can show the same version).
 
+Example usage:
+  source ~/spyder-env/bin/activate
+  python3 opensnpqual.py --cli -i ./example_touchstone/example_list.csv -o test
+
 SPDX-License-Identifier: BSD-3-Clause
 """
 
@@ -397,6 +401,7 @@ class OpenSNPQualCLI:
             
             # Quality level legend
             
+            f.write("\n")
             f.write("## 📊 Quality Metrics Table - Initial (Frequency Domain) - good for quick check\n")
             f.write("\n")
             f.write("| Level | Symbol | Passivity (PQMi) | Reciprocity (RQMi)  | Causality (CQMi) | Description |\n")
