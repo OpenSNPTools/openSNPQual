@@ -618,6 +618,8 @@ def main():
                        help='Output prefix for result files (CLI mode)')
     parser.add_argument('files', nargs='*', 
                        help='S-parameter files to load (GUI mode)')
+    parser.add_argument("--freq-only", action="store_true",
+                    help="Run IEEE370 frequency-domain checks only (no time-domain metrics)")
     
     args = parser.parse_args()
     
@@ -628,7 +630,7 @@ def main():
             sys.exit(1)
         
         cli = OpenSNPQualCLI()
-        output_file = cli.process_csv(args.input, args.output)
+        output_file = cli.process_csv(args.input, args.output, freq_only=args.freq_only)
         print(f"Results saved to: {output_file}")
     else:
         # GUI mode

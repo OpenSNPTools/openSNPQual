@@ -16,15 +16,17 @@ CLI logic & report generation:
 
 Version string (so both CLI and GUI can show the same version).
 
-Example usage:
+Example usage, calculates TD and FD both:
   source ~/spyder-env/bin/activate
   python3 opensnpqual.py --cli -i ./example_touchstone/example_list.csv -o test
+or
+  python3 opensnpqual.py --cli --freq-only -i ./example_touchstone/example_list.csv -o test
 
 SPDX-License-Identifier: BSD-3-Clause
 """
 
 # Version information
-OPENSNPQUAL_VERSION = "v0.1"  # Change xx to your desired version number
+OPENSNPQUAL_VERSION = "v0.1"  # Change xx to the version number
 
 # IMPORTS
 import os
@@ -296,7 +298,7 @@ class OpenSNPQualCLI:
     def evaluate_file_frequency_only(self, filepath: str) -> Dict[str, any]:
         return self.metrics.evaluate_file_frequency_only(filepath)
 
-    def process_csv(self, input_csv: str, output_prefix: str = None) -> str:
+    def process_csv(self, input_csv: str, output_prefix: str = None, freq_only: bool = False) -> str:
         """Process CSV file containing S-parameter filenames"""
         if output_prefix is None:
             output_prefix = Path(input_csv).stem
@@ -311,7 +313,10 @@ class OpenSNPQualCLI:
         for filename in filenames:
             filepath = filename.strip()
             if os.path.exists(filepath):
-                result = self.metrics.evaluate_file(filepath)
+                if freq_only:
+                    result = self.metrics.evaluate_file_frequency_only(filepath)
+                else:
+                    result = self.metrics.evaluate_file(filepath)
                 results.append(result)
             else:
                 print(f"Warning: File not found - {filepath}")
