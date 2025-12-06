@@ -28,7 +28,7 @@ SPDX-License-Identifier: BSD-3-Clause
 
 # Version information
 OPENSNPQUAL_VERSION = "v0.1"  # Change xx to the version number
-OPENSNPQUAL_TITLE   = f"OpenSNPQual {OPENSNPQUAL_VERSION}:  A Simple S-PArameter Quality Checker"
+OPENSNPQUAL_TITLE   = f"OpenSNPQual {OPENSNPQUAL_VERSION}:  A Simple S-Parameter Quality Checker"
 
 # IMPORTS
 import os

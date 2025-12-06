@@ -575,6 +575,9 @@ class OpenSNPQualGUI:
             
             text.insert("end", "Website: ", "bold")
             text.insert("end", "https://github.com/OpenSNPTools/openSNPQual/", "website_link")
+
+            text.insert("end", "\n\n")
+            text.insert("end", "Made with ❤️ for the Signal Integrity Community", "italic")
             
             # Configure tags
             text.tag_config("heading", font=("Arial", 11, "bold"))

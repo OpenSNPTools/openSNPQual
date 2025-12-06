@@ -2,7 +2,7 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/OpenSNPTools/OpenSNPQual)
 
-# openSNPQual
+# openSNPQual V0.1:  A Simple S-Parameter Quality Checker
 
 A simple utility tool for evaluating S-parameter (Touchstone) file quality based on IEEE 370 standard. OpenSNPQual provides both GUI and CLI interfaces to assess passivity, reciprocity, and causality metrics in frequency and time domains.
 
@@ -35,7 +35,7 @@ Based on IEEE 370 code, re-implemented in Python using AI coders.
   - Markdown reports with color-coded quality indicators
   - Clipboard support for Excel/PowerPoint integration
 
-## 📊 Quality Metrics Table - Initial (Frequency Domain) - good for quick check
+### 📊 Quality Metrics - Initial (Frequency Domain) - good for quick check
 
 | Level | Symbol | Passivity (PQMi) | Reciprocity (RQMi)  | Causality (CQMi) | Description |
 |-------|--------|-----------|-----------|-----------|-------------|
@@ -44,7 +44,7 @@ Based on IEEE 370 code, re-implemented in Python using AI coders.
 | 🟡 Inconclusive | △ | (80, 99] | (80, 99] | (20, 50] | Marginal quality, unlikely to be reliable |
 | 🔴 POOR | ✗ | [0, 80] | [0, 80] | [0, 20] | Poor quality, do not use! Re-measurement (+ VNA recalibration) recommended |
 
-## 📊 Quality Metrics Table - Application-based (Time Domain) - rigorously computed
+### 📊 Quality Metrics - Application-based (Time Domain) - rigorously computed
 
 | Level | Symbol | Passivity (PQMa) | Reciprocity (RQMa)  | Causality (CQMa) | Description |
 |-------|--------|-----------|-----------|-----------|-------------|
@@ -111,6 +111,12 @@ opensnpqual --cli -i input_files.csv -o my_results
 
 # Process specific files directly
 opensnpqual --cli file1.s2p file2.s4p file3.s8p
+
+# To run on examplef files included in the repo
+python3 opensnpqual.py --cli -i ./example_touchstone/example_list.csv -o test
+
+# To run same, but only FREQ domain (initial) metrics
+python3 opensnpqual.py --cli --freq-only -i ./example_touchstone/example_list.csv -o test
 ```
 
 **Input CSV Format:**
@@ -163,11 +169,11 @@ This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICE
 
 - **Author**: Giorgi Maghlakelidze
 - **Email**: giorgi.snp [@] pm [DOT] me
-- **LinkedIn**: [Your LinkedIn](https://linkedin.com/in/giorgim)
+- **LinkedIn**: [my LinkedIn profile](https://linkedin.com/in/giorgim)
 - **Bugs & Feature Requests**: [GitHub Issues](https://github.com/OpenSNPTools/openSNPQual/issues)
 
 ---
 
-**Note**: This tool is intended for educational and professional use. While we strive for accuracy, always validate critical results with established commercial tools.
+**Note**: This tool is intended for educational use. While we strive for accuracy, please always validate critical results with established professional tools.
 
 <p align="center">Made with ❤️ for the Signal Integrity Community</p>
