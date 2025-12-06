@@ -3,8 +3,7 @@
 OpenSNPQual - S-Parameter Quality Evaluation Tool
 Evaluates S-parameter quality metrics including Passivity, Reciprocity, and Causality
 
-This is the FRONT END / GUI.
-Responsibilities:
+This is the FRONT END / GUI. Responsibilities:
 
 User interface:
   * Tk window, menu bar, dialogs.
@@ -33,7 +32,7 @@ from datetime import datetime
 import webbrowser
 
 # from backend
-from opensnpqual_backend import OpenSNPQualCLI, OPENSNPQUAL_VERSION
+from opensnpqual_backend import OpenSNPQualCLI, OPENSNPQUAL_VERSION, OPENSNPQUAL_TITLE
 
 
 class CustomInfoDialog:
@@ -71,7 +70,7 @@ class OpenSNPQualGUI:
     
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title(f"OpenSNPQual {OPENSNPQUAL_VERSION}:  A Simple Quality Checker")
+        self.root.title(OPENSNPQUAL_TITLE)
         self.root.geometry("1200x600")
         
         self.cli = OpenSNPQualCLI()
@@ -608,7 +607,7 @@ class OpenSNPQualGUI:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description=f"OpenSNPQual {OPENSNPQUAL_VERSION}:  A Simple Quality Checker"
+        description = OPENSNPQUAL_TITLE
     )
     parser.add_argument('--cli', action='store_true', 
                        help='Run in CLI mode')

@@ -3,8 +3,7 @@
 OpenSNPQual - S-Parameter Quality Evaluation Tool
 Evaluates S-parameter quality metrics including Passivity, Reciprocity, and Causality
 
-This is the BACKEND.
-Responsibilities:
+This is the BACKEND. Responsibilities:
 
 All computation and S-parameter handling:
   * P370-based evaluation for a single file (freq + time, freq-only).
@@ -15,6 +14,8 @@ CLI logic & report generation:
   * Export CSV + Markdown.
 
 Version string (so both CLI and GUI can show the same version).
+
+----
 
 Example usage, calculates TD and FD both:
   source ~/spyder-env/bin/activate
@@ -27,6 +28,7 @@ SPDX-License-Identifier: BSD-3-Clause
 
 # Version information
 OPENSNPQUAL_VERSION = "v0.1"  # Change xx to the version number
+OPENSNPQUAL_TITLE   = f"OpenSNPQual {OPENSNPQUAL_VERSION}:  A Simple S-PArameter Quality Checker"
 
 # IMPORTS
 import os
@@ -357,7 +359,7 @@ class OpenSNPQualCLI:
     def save_markdown_results(self, results: List[Dict], output_file: str):
         """Save results to Markdown file with color coding"""
         with open(output_file, 'w') as f:
-            f.write(f"# OpenSNPQual {OPENSNPQUAL_VERSION}:  A Simple Quality Checker -- REPORT\n\n")
+            f.write(f"# {OPENSNPQUAL_TITLE} -- REPORT\n\n")
             f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")            
                   
             # Results table
@@ -407,7 +409,9 @@ class OpenSNPQualCLI:
             # Quality level legend
             
             f.write("\n")
-            f.write("## 📊 Quality Metrics Table - Initial (Frequency Domain) - good for quick check\n")
+            f.write("# How to Interpret The Results -- LENGEND")
+            f.write("\n")
+            f.write("### 📊 Quality Metrics Table - Initial (Frequency Domain) - good for quick check\n")
             f.write("\n")
             f.write("| Level | Symbol | Passivity (PQMi) | Reciprocity (RQMi)  | Causality (CQMi) | Description |\n")
             f.write("|-------|--------|-----------|-----------|-----------|-------------|\n")
@@ -416,7 +420,7 @@ class OpenSNPQualCLI:
             f.write("| 🟡 Inconclusive | △ | (80, 99] | (80, 99] | (20, 50] | Marginal quality, unlikely to be reliable |\n")
             f.write("| 🔴 POOR | ✗ | [0, 80] | [0, 80] | [0, 20] | Poor quality, do not use! Re-measurement (+ VNA recalibration) recommended |\n")
             f.write("\n")
-            f.write("## 📊 Quality Metrics Table - Application-based (Time Domain) - rigorously computed\n")
+            f.write("### 📊 Quality Metrics Table - Application-based (Time Domain) - rigorously computed\n")
             f.write("\n")
             f.write("| Level | Symbol | Passivity (PQMa) | Reciprocity (RQMa)  | Causality (CQMa) | Description |\n")
             f.write("|-------|--------|-----------|-----------|-----------|-------------|\n")
