@@ -97,6 +97,7 @@ class OpenSNPQualGUI:
         self.settings = load_settings()
         self.cli = OpenSNPQualCLI()
         self.parallel_enabled = self.settings.parallel_per_file  # can be flipped in future settings UI
+        self.settings_window = None
         self.file_list = []
         self.results = {}
 
@@ -144,23 +145,29 @@ class OpenSNPQualGUI:
         
         # Buttons frame
         button_frame = ttk.Frame(self.main_frame)
-        button_frame.grid(row=0, column=0, columnspan=2, pady=5, sticky=tk.W)
-        
-        ttk.Button(button_frame, text="Load SNPs", command=self.load_files).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Load Folder", command=self.load_folder).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Calculate", command=self.calculate_metrics).pack(side=tk.LEFT, padx=5)
-        
-        # Add the checkbox for time domain calculation
+        button_frame.grid(row=0, column=0, columnspan=2, pady=5, sticky=(tk.W, tk.E))
+        button_frame.columnconfigure(0, weight=1)
+
+        left_buttons = ttk.Frame(button_frame)
+        left_buttons.grid(row=0, column=0, sticky=tk.W)
+
+        ttk.Button(left_buttons, text="Load SNPs", command=self.load_files).pack(side=tk.LEFT, padx=5)
+        ttk.Button(left_buttons, text="Load Folder", command=self.load_folder).pack(side=tk.LEFT, padx=5)
+        ttk.Button(left_buttons, text="Calculate", command=self.calculate_metrics).pack(side=tk.LEFT, padx=5)
+
+        # Keep the variable for settings without showing a checkbox in the main toolbar
         self.calculate_time_domain_var = tk.BooleanVar(value=self.settings.include_time_domain)
-        self.time_domain_checkbox = ttk.Checkbutton(
-            button_frame, 
-            text="Include TIME DOMAIN",
-            variable=self.calculate_time_domain_var,
-            command=self.on_time_domain_toggle
-        )
-        self.time_domain_checkbox.pack(side=tk.LEFT, padx=15)
-        
-        ttk.Button(button_frame, text="Clear", command=self.clear_all).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(left_buttons, text="Clear", command=self.clear_all).pack(side=tk.LEFT, padx=5)
+
+        right_buttons = ttk.Frame(button_frame)
+        right_buttons.grid(row=0, column=1, sticky=tk.E)
+
+        # Settings button (right-aligned, cog icon)
+        self.settings_button = ttk.Button(right_buttons, text="⚙", width=3, command=self.open_settings_window)
+        self.settings_button.pack(side=tk.RIGHT, padx=5)
+        self.settings_button.bind("<Enter>", lambda e: self.status_label.config(text="Settings"))
+        self.settings_button.bind("<Leave>", lambda e: self.status_label.config(text="Ready"))
         
         # Table frame with scrollbars
         self.table_frame = ttk.Frame(self.main_frame)
@@ -725,6 +732,55 @@ class OpenSNPQualGUI:
         self.settings.parallel_per_file = self.parallel_enabled
         self._save_settings()
         self.root.destroy()
+
+    def open_settings_window(self):
+        """Open a minimal settings window with available flags"""
+        if self.settings_window and tk.Toplevel.winfo_exists(self.settings_window):
+            self.settings_window.lift()
+            return
+
+        self.settings_window = tk.Toplevel(self.root)
+        self.settings_window.title("Settings")
+        self.settings_window.resizable(False, False)
+
+        frame = ttk.Frame(self.settings_window, padding=12)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        self.var_settings_parallel = tk.BooleanVar(value=self.settings.parallel_per_file)
+        ttk.Checkbutton(
+            frame,
+            text="Enable per-file parallel calculations (experimental)",
+            variable=self.var_settings_parallel,
+            command=self._on_settings_parallel_changed,
+        ).pack(anchor=tk.W, pady=4)
+
+        self.var_settings_time = tk.BooleanVar(value=self.settings.include_time_domain)
+        ttk.Checkbutton(
+            frame,
+            text="Include Time-Domain metrics (application-specific)",
+            variable=self.var_settings_time,
+            command=self._on_settings_time_changed,
+        ).pack(anchor=tk.W, pady=4)
+
+        ttk.Button(frame, text="Close", command=self._close_settings_window).pack(anchor=tk.E, pady=(10, 0))
+
+        self.settings_window.protocol("WM_DELETE_WINDOW", self._close_settings_window)
+
+    def _close_settings_window(self):
+        if self.settings_window:
+            self.settings_window.destroy()
+            self.settings_window = None
+
+    def _on_settings_parallel_changed(self):
+        self.parallel_enabled = bool(self.var_settings_parallel.get())
+        self.settings.parallel_per_file = self.parallel_enabled
+        self._save_settings()
+
+    def _on_settings_time_changed(self):
+        include_time = bool(self.var_settings_time.get())
+        self.settings.include_time_domain = include_time
+        self.calculate_time_domain_var.set(include_time)
+        self.on_time_domain_toggle()
 
     def run(self):
         """Run the GUI application"""
