@@ -31,6 +31,15 @@ import threading
 from datetime import datetime
 import webbrowser
 
+# Optional drag-and-drop support
+try:
+    from tkinterdnd2 import TkinterDnD, DND_FILES
+    DND_AVAILABLE = True
+except ImportError:
+    TkinterDnD = None
+    DND_FILES = None
+    DND_AVAILABLE = False
+
 # from backend
 from opensnpqual_backend import OpenSNPQualCLI, OPENSNPQUAL_VERSION, OPENSNPQUAL_TITLE
 
@@ -67,12 +76,14 @@ class CustomInfoDialog:
 
 class OpenSNPQualGUI:
     """GUI for OpenSNPQual"""
+    SNP_EXTENSIONS = ('s1p', 's2p', 's3p', 's4p', 's6p', 's8p', 'snp', 's*p')
     
     def __init__(self):
-        self.root = tk.Tk()
+        # Use DnD-enabled root when available, fall back gracefully otherwise
+        self.root = TkinterDnD.Tk() if DND_AVAILABLE else tk.Tk()
         self.root.title(OPENSNPQUAL_TITLE)
         self.root.geometry("1200x600")
-        
+
         self.cli = OpenSNPQualCLI()
         self.file_list = []
         self.results = {}
@@ -80,6 +91,7 @@ class OpenSNPQualGUI:
         self.calculate_time_domain_var = None  # Will be set in setup_ui
         
         self.setup_ui()
+        self._init_drag_and_drop()
         
         # Check if file was passed as argument
         if len(sys.argv) > 1:
@@ -114,11 +126,11 @@ class OpenSNPQualGUI:
         help_menu.add_command(label="About OpenSNPQual", command=self.show_about)
 
         # Main frame
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.main_frame = ttk.Frame(self.root, padding="10")
+        self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Buttons frame
-        button_frame = ttk.Frame(main_frame)
+        button_frame = ttk.Frame(self.main_frame)
         button_frame.grid(row=0, column=0, columnspan=2, pady=5, sticky=tk.W)
         
         ttk.Button(button_frame, text="Load SNPs", command=self.load_files).pack(side=tk.LEFT, padx=5)
@@ -139,22 +151,22 @@ class OpenSNPQualGUI:
         
         # Progress bar
         self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(main_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar = ttk.Progressbar(self.main_frame, variable=self.progress_var, maximum=100)
         self.progress_bar.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
         
         # Status label
-        self.status_label = ttk.Label(main_frame, text="Ready")
+        self.status_label = ttk.Label(self.main_frame, text="Ready")
         self.status_label.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=5)
         
         # Table frame with scrollbars
-        table_frame = ttk.Frame(main_frame)
-        table_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.table_frame = ttk.Frame(self.main_frame)
+        self.table_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Configure grid weights
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(3, weight=1)
+        self.main_frame.columnconfigure(0, weight=1)
+        self.main_frame.rowconfigure(3, weight=1)
         
         # Create Treeview for table
         # Columns are organized as: FREQ metrics | separator | TIME metrics
@@ -169,7 +181,7 @@ class OpenSNPQualGUI:
         )
 
         self.tree = ttk.Treeview(
-            table_frame,
+            self.table_frame,
             columns=columns,
             show='tree headings',
             height=15,
@@ -196,8 +208,8 @@ class OpenSNPQualGUI:
                 self.tree.column(col, width=140, anchor=tk.CENTER)
         
         # Add scrollbars
-        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
-        hsb = ttk.Scrollbar(table_frame, orient="horizontal", command=self.tree.xview)
+        vsb = ttk.Scrollbar(self.table_frame, orient="vertical", command=self.tree.yview)
+        hsb = ttk.Scrollbar(self.table_frame, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
         
         # Grid layout for table and scrollbars
@@ -205,8 +217,8 @@ class OpenSNPQualGUI:
         vsb.grid(row=0, column=1, sticky=(tk.N, tk.S))
         hsb.grid(row=1, column=0, sticky=(tk.W, tk.E))
         
-        table_frame.columnconfigure(0, weight=1)
-        table_frame.rowconfigure(0, weight=1)
+        self.table_frame.columnconfigure(0, weight=1)
+        self.table_frame.rowconfigure(0, weight=1)
         
         # Define tags for color coding
         self.tree.tag_configure('great', foreground='green')
@@ -238,10 +250,7 @@ class OpenSNPQualGUI:
         
         if folder:
             # Find all .s*p files in the folder
-            snp_files = []
-            for ext in ['s1p', 's2p', 's3p', 's4p', 's6p', 's8p', 'snp']:
-                snp_files.extend(Path(folder).glob(f"*.{ext}"))
-                snp_files.extend(Path(folder).glob(f"*.{ext.upper()}"))
+            snp_files = self._find_sparam_files(folder)
             
             if snp_files:
                 self.add_files_to_list([str(f) for f in snp_files])
@@ -399,6 +408,62 @@ class OpenSNPQualGUI:
 
                 self.tree.item(item, tags=(tag,))
                 break
+
+    def _init_drag_and_drop(self):
+        """Enable drag-and-drop of files when tkinterdnd2 is present"""
+        if not DND_AVAILABLE:
+            # Keep normal Ready message but hint that DnD is optional
+            self.status_label.config(text="Ready (No drag-and-drop available, requires tkinterdnd2)")
+            return
+
+        # Register multiple surfaces so the first drop works anywhere in the window
+        for widget in (
+            self.root,
+            getattr(self, "main_frame", None),
+            getattr(self, "table_frame", None),
+            self.tree,
+        ):
+            if widget:
+                widget.drop_target_register(DND_FILES)
+                widget.dnd_bind('<<Drop>>', self._on_drop)
+
+        self.status_label.config(text="Ready (drag-and-drop enabled)")
+
+    def _on_drop(self, event):
+        """Handle files/folders dropped onto the window or table"""
+        # splitlist handles paths with spaces wrapped in braces
+        raw_paths = self.root.tk.splitlist(event.data)
+
+        collected_files = []
+        for raw_path in raw_paths:
+            path = Path(raw_path).expanduser()
+            if path.is_dir():
+                collected_files.extend(str(f) for f in self._find_sparam_files(path))
+            elif self._is_sparam_file(path):
+                collected_files.append(str(path))
+
+        if collected_files:
+            self.add_files_to_list(collected_files)
+            self.status_label.config(text=f"Added {len(collected_files)} file(s) via drag-and-drop")
+        else:
+            self.status_label.config(text="No supported S-parameter files detected in drop")
+
+        # Return the suggested action so tkdnd treats the drop as handled immediately
+        return event.action or 'copy'
+
+    def _is_sparam_file(self, path_obj):
+        """Check if a Path or string points to a supported S-parameter file"""
+        suffix = Path(path_obj).suffix.lower().lstrip('.')
+        return suffix in self.SNP_EXTENSIONS
+
+    def _find_sparam_files(self, folder):
+        """Return a list of Path objects for supported files within a folder"""
+        folder_path = Path(folder)
+        snp_files = []
+        for ext in self.SNP_EXTENSIONS:
+            snp_files.extend(folder_path.glob(f"*.{ext}"))
+            snp_files.extend(folder_path.glob(f"*.{ext.upper()}"))
+        return snp_files
     
     def copy_table_to_clipboard(self):
         """Copy table contents to clipboard"""
