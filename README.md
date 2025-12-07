@@ -10,9 +10,9 @@ Based on IEEE 370 code, re-implemented in Python using AI coders.
 
 **This code and repo is intended to be a learning experience. The results are correlated to the original code. Use discretion and caution when using. **
 
-![OpenSNPQual Screenshot GUI](docs/screenshot_gui.png)
+![OpenSNPQual Screenshot GUI](./docs/graphics/screenshot_gui.png)
 
-![OpenSNPQual Screenshot Result](docs/screenshot_result_md.png)
+![OpenSNPQual Screenshot Result](./docs/graphics/screenshot_result_md.png)
 
 ## 🚀 Features
 
@@ -20,6 +20,7 @@ Based on IEEE 370 code, re-implemented in Python using AI coders.
   - Passivity verification (|S| ≤ 1)
   - Reciprocity check (S_ij = S_ji)
   - Causality evaluation using Kramers-Kronig relations
+  - Python implementaion of IEEE370 code -- correlation [report here](./docs/openSNPQual_correlation_IEEE370.md)  
   
 - **Dual Domain Analysis**
   - Frequency domain metrics

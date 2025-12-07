@@ -594,7 +594,7 @@ class OpenSNPQualGUI:
             text.tag_config("bullet", foreground="#666666")
             text.tag_config("link", foreground="blue", underline=True)
             text.tag_bind("link", "<Button-1>", 
-                        lambda e: webbrowser.open("https://github.com/OpenSNPTools/openSNPQual/blob/IEEEP370_Qual_Correlation/example_touchstone/sparams_info.md"))
+                        lambda e: webbrowser.open("https://github.com/OpenSNPTools/openSNPQual/tree/main/docs/openSNPQual_correlation_IEEE370.md"))
             text.tag_bind("link", "<Enter>", lambda e: text.config(cursor="hand2"))
             text.tag_bind("link", "<Leave>", lambda e: text.config(cursor=""))
             

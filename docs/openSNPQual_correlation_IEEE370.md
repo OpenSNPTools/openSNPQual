@@ -17,10 +17,10 @@ TODO: during debug, create_passive_matrix(), create_reciprocal_matrix(), create_
 
 ## Results validation and correlation presented in IEEE EMC + SIPI Symposium 2025
 
-![ ](./results_comparison_FD_ieee_emcs_2025.png  "Frequency Domain Quality Metrics")
+![ ](./graphics/results_comparison_FD_ieee_emcs_2025.png  "Frequency Domain Quality Metrics")
 
 
-![ ](./results_comparison_TD_ieee_emcs_2025.png  "Time Domain Quality Metrics")
+![ ](./graphics/results_comparison_TD_ieee_emcs_2025.png  "Time Domain Quality Metrics")
 
 ---
 ## pcb_stripline_119mm.s2p
