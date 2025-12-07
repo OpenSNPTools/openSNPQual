@@ -162,24 +162,15 @@ class OpenSNPQualGUI:
         
         ttk.Button(button_frame, text="Clear", command=self.clear_all).pack(side=tk.LEFT, padx=5)
         
-        # Progress bar
-        self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(self.main_frame, variable=self.progress_var, maximum=100)
-        self.progress_bar.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        
-        # Status label
-        self.status_label = ttk.Label(self.main_frame, text="Ready")
-        self.status_label.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=5)
-        
         # Table frame with scrollbars
         self.table_frame = ttk.Frame(self.main_frame)
-        self.table_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.table_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Configure grid weights
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
-        self.main_frame.rowconfigure(3, weight=1)
+        self.main_frame.rowconfigure(1, weight=1)
         
         # Create Treeview for table
         # Columns are organized as: FREQ metrics | separator | TIME metrics
@@ -201,7 +192,7 @@ class OpenSNPQualGUI:
         )
 
         # Define column headings
-        self.tree.heading('#0', text='SNP File')
+        self.tree.heading('#0', text='Touchstone File')
         self.tree.heading('passivity_freq', text='Passivity \n(PQMi, Freq)')
         self.tree.heading('reciprocity_freq', text='Reciprocity \n(RQMi, Freq)')
         self.tree.heading('causality_freq', text='Causality \n(CQMi, Freq)')
@@ -232,6 +223,17 @@ class OpenSNPQualGUI:
         
         self.table_frame.columnconfigure(0, weight=1)
         self.table_frame.rowconfigure(0, weight=1)
+
+        # Progress bar and status label at bottom
+        bottom_frame = ttk.Frame(self.main_frame)
+        bottom_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(8, 0))
+
+        self.progress_var = tk.DoubleVar()
+        self.progress_bar = ttk.Progressbar(bottom_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar.pack(fill=tk.X, expand=True, side=tk.TOP, pady=(0, 4))
+
+        self.status_label = ttk.Label(bottom_frame, text="Ready")
+        self.status_label.pack(fill=tk.X, expand=True, side=tk.TOP)
         
         # Define tags for color coding
         self.tree.tag_configure('great', foreground='green')
@@ -512,7 +514,7 @@ class OpenSNPQualGUI:
     def copy_table_to_clipboard(self):
         """Copy table contents to clipboard"""
         # Build tab-separated text
-        clipboard_text = "SNP File\tPassivity (Freq)\tPassivity (Time)\t" \
+        clipboard_text = "Touchstone File\tPassivity (Freq)\tPassivity (Time)\t" \
                         "Reciprocity (Freq)\tReciprocity (Time)\t" \
                         "Causality (Freq)\tCausality (Time)\n"
         
