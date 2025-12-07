@@ -30,9 +30,27 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 from datetime import datetime
 import webbrowser
+import time
+
+# Optional drag-and-drop support
+try:
+    from tkinterdnd2 import TkinterDnD, DND_FILES
+    DND_AVAILABLE = True
+except ImportError:
+    TkinterDnD = None
+    DND_FILES = None
+    DND_AVAILABLE = False
 
 # from backend
-from opensnpqual_backend import OpenSNPQualCLI, OPENSNPQUAL_VERSION, OPENSNPQUAL_TITLE
+from opensnpqual_backend import (
+    OpenSNPQualCLI,
+    OPENSNPQUAL_VERSION,
+    OPENSNPQUAL_TITLE,
+    Settings,
+    load_settings,
+    save_settings,
+    get_settings_path,
+)
 
 
 class CustomInfoDialog:
@@ -67,19 +85,27 @@ class CustomInfoDialog:
 
 class OpenSNPQualGUI:
     """GUI for OpenSNPQual"""
+    SNP_EXTENSIONS = ('s1p', 's2p', 's3p', 's4p', 's6p', 's8p', 'snp', 's*p')
     
     def __init__(self):
-        self.root = tk.Tk()
+        # Use DnD-enabled root when available, fall back gracefully otherwise
+        self.root = TkinterDnD.Tk() if DND_AVAILABLE else tk.Tk()
         self.root.title(OPENSNPQUAL_TITLE)
         self.root.geometry("1200x600")
-        
+
+        # Load persisted settings (if any)
+        self.settings = load_settings()
         self.cli = OpenSNPQualCLI()
+        self.parallel_enabled = self.settings.parallel_per_file  # can be flipped in future settings UI
+        self.settings_window = None
         self.file_list = []
         self.results = {}
 
         self.calculate_time_domain_var = None  # Will be set in setup_ui
         
         self.setup_ui()
+        self._init_drag_and_drop()
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         
         # Check if file was passed as argument
         if len(sys.argv) > 1:
@@ -114,47 +140,44 @@ class OpenSNPQualGUI:
         help_menu.add_command(label="About OpenSNPQual", command=self.show_about)
 
         # Main frame
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.main_frame = ttk.Frame(self.root, padding="10")
+        self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Buttons frame
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=0, column=0, columnspan=2, pady=5, sticky=tk.W)
-        
-        ttk.Button(button_frame, text="Load SNPs", command=self.load_files).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Load Folder", command=self.load_folder).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Calculate", command=self.calculate_metrics).pack(side=tk.LEFT, padx=5)
-        
-        # Add the checkbox for time domain calculation
-        self.calculate_time_domain_var = tk.BooleanVar(value=False)  # Default unchecked
-        self.time_domain_checkbox = ttk.Checkbutton(
-            button_frame, 
-            text="Include TIME DOMAIN",
-            variable=self.calculate_time_domain_var,
-            command=self.on_time_domain_toggle
-        )
-        self.time_domain_checkbox.pack(side=tk.LEFT, padx=15)
-        
-        ttk.Button(button_frame, text="Clear", command=self.clear_all).pack(side=tk.LEFT, padx=5)
-        
-        # Progress bar
-        self.progress_var = tk.DoubleVar()
-        self.progress_bar = ttk.Progressbar(main_frame, variable=self.progress_var, maximum=100)
-        self.progress_bar.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        
-        # Status label
-        self.status_label = ttk.Label(main_frame, text="Ready")
-        self.status_label.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=5)
+        button_frame = ttk.Frame(self.main_frame)
+        button_frame.grid(row=0, column=0, columnspan=2, pady=5, sticky=(tk.W, tk.E))
+        button_frame.columnconfigure(0, weight=1)
+
+        left_buttons = ttk.Frame(button_frame)
+        left_buttons.grid(row=0, column=0, sticky=tk.W)
+
+        ttk.Button(left_buttons, text="Load SNPs", command=self.load_files).pack(side=tk.LEFT, padx=5)
+        ttk.Button(left_buttons, text="Load Folder", command=self.load_folder).pack(side=tk.LEFT, padx=5)
+        ttk.Button(left_buttons, text="Calculate", command=self.calculate_metrics).pack(side=tk.LEFT, padx=5)
+
+        # Keep the variable for settings without showing a checkbox in the main toolbar
+        self.calculate_time_domain_var = tk.BooleanVar(value=self.settings.include_time_domain)
+
+        ttk.Button(left_buttons, text="Clear", command=self.clear_all).pack(side=tk.LEFT, padx=5)
+
+        right_buttons = ttk.Frame(button_frame)
+        right_buttons.grid(row=0, column=1, sticky=tk.E)
+
+        # Settings button (right-aligned, cog icon)
+        self.settings_button = ttk.Button(right_buttons, text="⚙", width=3, command=self.open_settings_window)
+        self.settings_button.pack(side=tk.RIGHT, padx=5)
+        self.settings_button.bind("<Enter>", lambda e: self.status_label.config(text="Settings"))
+        self.settings_button.bind("<Leave>", lambda e: self.status_label.config(text="Ready"))
         
         # Table frame with scrollbars
-        table_frame = ttk.Frame(main_frame)
-        table_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.table_frame = ttk.Frame(self.main_frame)
+        self.table_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Configure grid weights
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(3, weight=1)
+        self.main_frame.columnconfigure(0, weight=1)
+        self.main_frame.rowconfigure(1, weight=1)
         
         # Create Treeview for table
         # Columns are organized as: FREQ metrics | separator | TIME metrics
@@ -169,14 +192,14 @@ class OpenSNPQualGUI:
         )
 
         self.tree = ttk.Treeview(
-            table_frame,
+            self.table_frame,
             columns=columns,
             show='tree headings',
             height=15,
         )
 
         # Define column headings
-        self.tree.heading('#0', text='SNP File')
+        self.tree.heading('#0', text='Touchstone File')
         self.tree.heading('passivity_freq', text='Passivity \n(PQMi, Freq)')
         self.tree.heading('reciprocity_freq', text='Reciprocity \n(RQMi, Freq)')
         self.tree.heading('causality_freq', text='Causality \n(CQMi, Freq)')
@@ -196,8 +219,8 @@ class OpenSNPQualGUI:
                 self.tree.column(col, width=140, anchor=tk.CENTER)
         
         # Add scrollbars
-        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
-        hsb = ttk.Scrollbar(table_frame, orient="horizontal", command=self.tree.xview)
+        vsb = ttk.Scrollbar(self.table_frame, orient="vertical", command=self.tree.yview)
+        hsb = ttk.Scrollbar(self.table_frame, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
         
         # Grid layout for table and scrollbars
@@ -205,8 +228,19 @@ class OpenSNPQualGUI:
         vsb.grid(row=0, column=1, sticky=(tk.N, tk.S))
         hsb.grid(row=1, column=0, sticky=(tk.W, tk.E))
         
-        table_frame.columnconfigure(0, weight=1)
-        table_frame.rowconfigure(0, weight=1)
+        self.table_frame.columnconfigure(0, weight=1)
+        self.table_frame.rowconfigure(0, weight=1)
+
+        # Progress bar and status label at bottom
+        bottom_frame = ttk.Frame(self.main_frame)
+        bottom_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(8, 0))
+
+        self.progress_var = tk.DoubleVar()
+        self.progress_bar = ttk.Progressbar(bottom_frame, variable=self.progress_var, maximum=100)
+        self.progress_bar.pack(fill=tk.X, expand=True, side=tk.TOP, pady=(0, 4))
+
+        self.status_label = ttk.Label(bottom_frame, text="Ready")
+        self.status_label.pack(fill=tk.X, expand=True, side=tk.TOP)
         
         # Define tags for color coding
         self.tree.tag_configure('great', foreground='green')
@@ -221,6 +255,9 @@ class OpenSNPQualGUI:
             self.status_label.config(text="Time domain calculation enabled")
         else:
             self.status_label.config(text="Time domain calculation disabled")
+        # Persist setting
+        self.settings.include_time_domain = self.calculate_time_domain_var.get()
+        self._save_settings()
 
     def load_files(self):
         """Load S-parameter files using file dialog"""
@@ -238,10 +275,7 @@ class OpenSNPQualGUI:
         
         if folder:
             # Find all .s*p files in the folder
-            snp_files = []
-            for ext in ['s1p', 's2p', 's3p', 's4p', 's6p', 's8p', 'snp']:
-                snp_files.extend(Path(folder).glob(f"*.{ext}"))
-                snp_files.extend(Path(folder).glob(f"*.{ext.upper()}"))
+            snp_files = self._find_sparam_files(folder)
             
             if snp_files:
                 self.add_files_to_list([str(f) for f in snp_files])
@@ -286,50 +320,78 @@ class OpenSNPQualGUI:
     
     def _calculate_worker(self):
         """Worker thread for calculations"""
-        self.status_label.config(text="Calculating...")
-        self.progress_var.set(0)
+        self.root.after(0, lambda: self.status_label.config(text="Calculating..."))
+        self.root.after(0, self.progress_var.set, 0)
+        start_time = time.perf_counter()
         
         # Check if time domain calculation is enabled
         calculate_time_domain = self.calculate_time_domain_var.get()
-        
-        # Create temporary CSV file
-        temp_csv = "temp_input.csv"
-        with open(temp_csv, 'w', newline='') as f:
-            writer = csv.writer(f)
-            for filepath in self.file_list:
-                writer.writerow([filepath])
+        self.settings.include_time_domain = calculate_time_domain
+        self.settings.parallel_per_file = self.parallel_enabled
+        self._save_settings()
+        filepaths = list(self.file_list)
+        total_files = len(filepaths)
 
-        # Process files
-        total_files = len(self.file_list)
-        for i, filepath in enumerate(self.file_list):
-            if calculate_time_domain:
-                # Use full IEEE P370 (freq + time) via CLI/backend
-                result = self.cli.evaluate_file_with_time_domain(filepath)
-            else:
-                # Use frequency domain only via CLI/backend
-                result = self.cli.evaluate_file_frequency_only(filepath)
+        settings = Settings(
+            parallel_per_file=self.parallel_enabled,
+            include_time_domain=calculate_time_domain,
+        )
 
+        # Progress hook executed in worker thread; UI updates are scheduled on main thread
+        def _progress_hook(filepath, result, completed, total):
             self.results[filepath] = result
-
-            progress = (i + 1) / total_files * 100
-            self.progress_var.set(progress)
-
+            progress = completed / total * 100
             self.root.after(0, self._update_table_row, filepath, result)
-        
-        # Clean up temp file
-        if os.path.exists(temp_csv):
-            os.remove(temp_csv)
-        
-        self.status_label.config(text=f"Calculation complete for {total_files} files")
-        
+            self.root.after(0, self.progress_var.set, progress)
+
+        try:
+            results = self.cli.evaluate_files(
+                filepaths,
+                max_workers=min(os.cpu_count() or 1, total_files),
+                settings=settings,
+                progress_hook=_progress_hook,
+            )
+        except Exception as e:
+            # Fallback to sequential if parallel evaluation fails
+            results = []
+            for i, filepath in enumerate(filepaths):
+                if settings.include_time_domain:
+                    result = self.cli.evaluate_file_with_time_domain(filepath)
+                else:
+                    result = self.cli.evaluate_file_frequency_only(filepath)
+                results.append(result)
+                self.results[filepath] = result
+                progress = (i + 1) / total_files * 100
+                self.root.after(0, self._update_table_row, filepath, result)
+                self.root.after(0, self.progress_var.set, progress)
+            print(f"Parallel evaluation failed, used sequential: {e}")
+
+        # Ensure all results are tracked even if hooks missed (should not happen)
+        for filepath, result in zip(filepaths, results):
+            if filepath not in self.results:
+                self.results[filepath] = result
+                self.root.after(0, self._update_table_row, filepath, result)
+
         # Save results automatically
         output_csv = f"snpqual_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         self.cli.save_csv_results(list(self.results.values()), output_csv)
         
         output_md = output_csv.replace('.csv', '.md')
-        self.cli.save_markdown_results(list(self.results.values()), output_md)
-        
-        self.status_label.config(text=f"Results saved to {output_csv} and {output_md}")
+        elapsed = time.perf_counter() - start_time
+        minutes, seconds = divmod(int(elapsed), 60)
+        status_msg = (
+            f"Finished processing {total_files} files in {minutes} min {seconds:02d} sec. \n"
+            f"Results saved to {output_csv} and {output_md}"
+        )
+        settings_summary = (
+            f"\n\n### Settings: \n\n parallel_per_file={self.settings.parallel_per_file}, \n\n"
+            f"include_time_domain={self.settings.include_time_domain}, \n\n"
+            f"extras={self.settings.extras if self.settings.extras else {}}\n\n"
+        )
+        summary_for_md = f"{status_msg} {settings_summary}"
+        self.cli.save_markdown_results(list(self.results.values()), output_md, summary=summary_for_md)
+
+        self.root.after(0, lambda: self.status_label.config(text=status_msg))
     
     def _update_table_row(self, filepath, result):
         """Update a single row in the table"""
@@ -399,11 +461,67 @@ class OpenSNPQualGUI:
 
                 self.tree.item(item, tags=(tag,))
                 break
+
+    def _init_drag_and_drop(self):
+        """Enable drag-and-drop of files when tkinterdnd2 is present"""
+        if not DND_AVAILABLE:
+            # Keep normal Ready message but hint that DnD is optional
+            self.status_label.config(text="Ready (No drag-and-drop available, requires tkinterdnd2)")
+            return
+
+        # Register multiple surfaces so the first drop works anywhere in the window
+        for widget in (
+            self.root,
+            getattr(self, "main_frame", None),
+            getattr(self, "table_frame", None),
+            self.tree,
+        ):
+            if widget:
+                widget.drop_target_register(DND_FILES)
+                widget.dnd_bind('<<Drop>>', self._on_drop)
+
+        self.status_label.config(text="Ready (drag-and-drop enabled)")
+
+    def _on_drop(self, event):
+        """Handle files/folders dropped onto the window or table"""
+        # splitlist handles paths with spaces wrapped in braces
+        raw_paths = self.root.tk.splitlist(event.data)
+
+        collected_files = []
+        for raw_path in raw_paths:
+            path = Path(raw_path).expanduser()
+            if path.is_dir():
+                collected_files.extend(str(f) for f in self._find_sparam_files(path))
+            elif self._is_sparam_file(path):
+                collected_files.append(str(path))
+
+        if collected_files:
+            self.add_files_to_list(collected_files)
+            self.status_label.config(text=f"Added {len(collected_files)} file(s) via drag-and-drop")
+        else:
+            self.status_label.config(text="No supported S-parameter files detected in drop")
+
+        # Return the suggested action so tkdnd treats the drop as handled immediately
+        return event.action or 'copy'
+
+    def _is_sparam_file(self, path_obj):
+        """Check if a Path or string points to a supported S-parameter file"""
+        suffix = Path(path_obj).suffix.lower().lstrip('.')
+        return suffix in self.SNP_EXTENSIONS
+
+    def _find_sparam_files(self, folder):
+        """Return a list of Path objects for supported files within a folder"""
+        folder_path = Path(folder)
+        snp_files = []
+        for ext in self.SNP_EXTENSIONS:
+            snp_files.extend(folder_path.glob(f"*.{ext}"))
+            snp_files.extend(folder_path.glob(f"*.{ext.upper()}"))
+        return snp_files
     
     def copy_table_to_clipboard(self):
         """Copy table contents to clipboard"""
         # Build tab-separated text
-        clipboard_text = "SNP File\tPassivity (Freq)\tPassivity (Time)\t" \
+        clipboard_text = "Touchstone File\tPassivity (Freq)\tPassivity (Time)\t" \
                         "Reciprocity (Freq)\tReciprocity (Time)\t" \
                         "Causality (Freq)\tCausality (Time)\n"
         
@@ -601,6 +719,68 @@ class OpenSNPQualGUI:
         
         CustomInfoDialog(self.root, "About OpenSNPQual", create_content)
 
+    def _save_settings(self):
+        """Persist settings to disk alongside the executable/script"""
+        try:
+            save_settings(self.settings)
+        except Exception as e:
+            print(f"Warning: failed to save settings: {e}")
+
+    def on_close(self):
+        """Handle window close"""
+        self.settings.include_time_domain = self.calculate_time_domain_var.get()
+        self.settings.parallel_per_file = self.parallel_enabled
+        self._save_settings()
+        self.root.destroy()
+
+    def open_settings_window(self):
+        """Open a minimal settings window with available flags"""
+        if self.settings_window and tk.Toplevel.winfo_exists(self.settings_window):
+            self.settings_window.lift()
+            return
+
+        self.settings_window = tk.Toplevel(self.root)
+        self.settings_window.title("Settings")
+        self.settings_window.resizable(False, False)
+
+        frame = ttk.Frame(self.settings_window, padding=12)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        self.var_settings_parallel = tk.BooleanVar(value=self.settings.parallel_per_file)
+        ttk.Checkbutton(
+            frame,
+            text="Enable per-file parallel calculations (experimental)",
+            variable=self.var_settings_parallel,
+            command=self._on_settings_parallel_changed,
+        ).pack(anchor=tk.W, pady=4)
+
+        self.var_settings_time = tk.BooleanVar(value=self.settings.include_time_domain)
+        ttk.Checkbutton(
+            frame,
+            text="Include Time-Domain metrics (application-specific)",
+            variable=self.var_settings_time,
+            command=self._on_settings_time_changed,
+        ).pack(anchor=tk.W, pady=4)
+
+        ttk.Button(frame, text="Close", command=self._close_settings_window).pack(anchor=tk.E, pady=(10, 0))
+
+        self.settings_window.protocol("WM_DELETE_WINDOW", self._close_settings_window)
+
+    def _close_settings_window(self):
+        if self.settings_window:
+            self.settings_window.destroy()
+            self.settings_window = None
+
+    def _on_settings_parallel_changed(self):
+        self.parallel_enabled = bool(self.var_settings_parallel.get())
+        self.settings.parallel_per_file = self.parallel_enabled
+        self._save_settings()
+
+    def _on_settings_time_changed(self):
+        include_time = bool(self.var_settings_time.get())
+        self.settings.include_time_domain = include_time
+        self.calculate_time_domain_var.set(include_time)
+        self.on_time_domain_toggle()
 
     def run(self):
         """Run the GUI application"""
@@ -622,6 +802,8 @@ def main():
                        help='S-parameter files to load (GUI mode)')
     parser.add_argument("--freq-only", action="store_true",
                     help="Run IEEE370 frequency-domain checks only (no time-domain metrics)")
+    parser.add_argument("--no-parallel", action="store_true",
+                    help="Disable per-file parallel processing (CLI mode)")
     
     args = parser.parse_args()
     
@@ -632,7 +814,12 @@ def main():
             sys.exit(1)
         
         cli = OpenSNPQualCLI()
-        output_file = cli.process_csv(args.input, args.output, freq_only=args.freq_only)
+        output_file = cli.process_csv(
+            args.input,
+            args.output,
+            freq_only=args.freq_only,
+            parallel_per_file=not args.no_parallel,
+        )
         print(f"Results saved to: {output_file}")
     else:
         # GUI mode

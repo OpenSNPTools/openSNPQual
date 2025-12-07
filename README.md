@@ -137,6 +137,7 @@ path/to/file3.s8p
 - `scipy` - Signal processing
 - `scikit-rf` - S-parameter file handling
 - `tkinter` - GUI framework (included with Python)
+- `tkinterdnd2` - Drag-and-drop support for the GUI (optional; GUI still works without it)
 
 ## 🤝 Contributing
 
