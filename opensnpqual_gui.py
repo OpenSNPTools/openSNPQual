@@ -41,7 +41,15 @@ except ImportError:
     DND_AVAILABLE = False
 
 # from backend
-from opensnpqual_backend import OpenSNPQualCLI, OPENSNPQUAL_VERSION, OPENSNPQUAL_TITLE
+from opensnpqual_backend import (
+    OpenSNPQualCLI,
+    OPENSNPQUAL_VERSION,
+    OPENSNPQUAL_TITLE,
+    Settings,
+    load_settings,
+    save_settings,
+    get_settings_path,
+)
 
 
 class CustomInfoDialog:
@@ -84,7 +92,10 @@ class OpenSNPQualGUI:
         self.root.title(OPENSNPQUAL_TITLE)
         self.root.geometry("1200x600")
 
+        # Load persisted settings (if any)
+        self.settings = load_settings()
         self.cli = OpenSNPQualCLI()
+        self.parallel_enabled = self.settings.parallel_per_file  # can be flipped in future settings UI
         self.file_list = []
         self.results = {}
 
@@ -92,6 +103,7 @@ class OpenSNPQualGUI:
         
         self.setup_ui()
         self._init_drag_and_drop()
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         
         # Check if file was passed as argument
         if len(sys.argv) > 1:
@@ -138,7 +150,7 @@ class OpenSNPQualGUI:
         ttk.Button(button_frame, text="Calculate", command=self.calculate_metrics).pack(side=tk.LEFT, padx=5)
         
         # Add the checkbox for time domain calculation
-        self.calculate_time_domain_var = tk.BooleanVar(value=False)  # Default unchecked
+        self.calculate_time_domain_var = tk.BooleanVar(value=self.settings.include_time_domain)
         self.time_domain_checkbox = ttk.Checkbutton(
             button_frame, 
             text="Include TIME DOMAIN",
@@ -233,6 +245,9 @@ class OpenSNPQualGUI:
             self.status_label.config(text="Time domain calculation enabled")
         else:
             self.status_label.config(text="Time domain calculation disabled")
+        # Persist setting
+        self.settings.include_time_domain = self.calculate_time_domain_var.get()
+        self._save_settings()
 
     def load_files(self):
         """Load S-parameter files using file dialog"""
@@ -300,9 +315,16 @@ class OpenSNPQualGUI:
         
         # Check if time domain calculation is enabled
         calculate_time_domain = self.calculate_time_domain_var.get()
-        freq_only = not calculate_time_domain
+        self.settings.include_time_domain = calculate_time_domain
+        self.settings.parallel_per_file = self.parallel_enabled
+        self._save_settings()
         filepaths = list(self.file_list)
         total_files = len(filepaths)
+
+        settings = Settings(
+            parallel_per_file=self.parallel_enabled,
+            include_time_domain=calculate_time_domain,
+        )
 
         # Progress hook executed in worker thread; UI updates are scheduled on main thread
         def _progress_hook(filepath, result, completed, total):
@@ -312,17 +334,17 @@ class OpenSNPQualGUI:
             self.root.after(0, self.progress_var.set, progress)
 
         try:
-            results = self.cli.evaluate_files_parallel(
+            results = self.cli.evaluate_files(
                 filepaths,
-                freq_only=freq_only,
                 max_workers=min(os.cpu_count() or 1, total_files),
+                settings=settings,
                 progress_hook=_progress_hook,
             )
         except Exception as e:
             # Fallback to sequential if parallel evaluation fails
             results = []
             for i, filepath in enumerate(filepaths):
-                if calculate_time_domain:
+                if settings.include_time_domain:
                     result = self.cli.evaluate_file_with_time_domain(filepath)
                 else:
                     result = self.cli.evaluate_file_frequency_only(filepath)
@@ -676,6 +698,19 @@ class OpenSNPQualGUI:
         
         CustomInfoDialog(self.root, "About OpenSNPQual", create_content)
 
+    def _save_settings(self):
+        """Persist settings to disk alongside the executable/script"""
+        try:
+            save_settings(self.settings)
+        except Exception as e:
+            print(f"Warning: failed to save settings: {e}")
+
+    def on_close(self):
+        """Handle window close"""
+        self.settings.include_time_domain = self.calculate_time_domain_var.get()
+        self.settings.parallel_per_file = self.parallel_enabled
+        self._save_settings()
+        self.root.destroy()
 
     def run(self):
         """Run the GUI application"""
@@ -697,6 +732,8 @@ def main():
                        help='S-parameter files to load (GUI mode)')
     parser.add_argument("--freq-only", action="store_true",
                     help="Run IEEE370 frequency-domain checks only (no time-domain metrics)")
+    parser.add_argument("--no-parallel", action="store_true",
+                    help="Disable per-file parallel processing (CLI mode)")
     
     args = parser.parse_args()
     
@@ -707,7 +744,12 @@ def main():
             sys.exit(1)
         
         cli = OpenSNPQualCLI()
-        output_file = cli.process_csv(args.input, args.output, freq_only=args.freq_only)
+        output_file = cli.process_csv(
+            args.input,
+            args.output,
+            freq_only=args.freq_only,
+            parallel_per_file=not args.no_parallel,
+        )
         print(f"Results saved to: {output_file}")
     else:
         # GUI mode

@@ -38,7 +38,9 @@ import argparse
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
+from dataclasses import dataclass, field
+import json
 
 import threading
 from datetime import datetime
@@ -48,6 +50,57 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import skrf as rf
 from ieee370_implementation.ieee_p370_quality_freq_domain import quality_check_frequency_domain
 from ieee370_implementation.ieee_p370_quality_time_domain import quality_check
+
+
+@dataclass
+class Settings:
+    """Settings for controlling evaluation behavior."""
+    parallel_per_file: bool = True
+    include_time_domain: bool = False
+    extras: Dict[str, Any] = field(default_factory=dict)  # Future-proof for additional settings
+
+
+def get_settings_path(custom_path: Optional[str] = None) -> Path:
+    """
+    Return path for settings JSON. Default is alongside the executable/script.
+    """
+    if custom_path:
+        return Path(custom_path)
+    return Path(sys.argv[0]).resolve().parent / "opensnpqual_settings.json"
+
+
+def load_settings(custom_path: Optional[str] = None) -> Settings:
+    """
+    Load settings from JSON; fall back to defaults if file missing or invalid.
+    """
+    path = get_settings_path(custom_path)
+    if not path.exists():
+        return Settings()
+    try:
+        with open(path, "r") as f:
+            data = json.load(f)
+        return Settings(
+            parallel_per_file=bool(data.get("parallel_per_file", True)),
+            include_time_domain=bool(data.get("include_time_domain", True)),
+            extras=data.get("extras", {}) if isinstance(data.get("extras", {}), dict) else {},
+        )
+    except Exception:
+        return Settings()
+
+
+def save_settings(settings: Settings, custom_path: Optional[str] = None) -> Path:
+    """
+    Save settings to JSON; returns the path written.
+    """
+    path = get_settings_path(custom_path)
+    payload = {
+        "parallel_per_file": settings.parallel_per_file,
+        "include_time_domain": settings.include_time_domain,
+        "extras": settings.extras,
+    }
+    with open(path, "w") as f:
+        json.dump(payload, f, indent=2)
+    return path
 
 
 class SParameterQualityMetrics:
@@ -306,6 +359,7 @@ class OpenSNPQualCLI:
     
     def __init__(self):
         self.metrics = SParameterQualityMetrics()
+        self.default_settings = Settings()
     
     # NEW convenience wrapper: full IEEE370 (freq + time)
     def evaluate_file_with_time_domain(self, filepath: str) -> Dict[str, any]:
@@ -315,17 +369,41 @@ class OpenSNPQualCLI:
     def evaluate_file_frequency_only(self, filepath: str) -> Dict[str, any]:
         return self.metrics.evaluate_file_frequency_only(filepath)
 
-    def evaluate_files_parallel(self, filepaths: List[str], freq_only: bool = False, max_workers: Optional[int] = None, progress_hook=None) -> List[Dict[str, any]]:
+    def evaluate_files(self, filepaths: List[str], settings: Optional[Settings] = None, max_workers: Optional[int] = None, progress_hook=None) -> List[Dict[str, any]]:
         """
-        Evaluate multiple files in parallel using processes (per-file parallelism).
-        Returns results in the same order as input.
+        Evaluate multiple files, optionally in parallel.
+        - settings.parallel_per_file controls use of process pool.
+        - settings.include_time_domain controls whether time metrics are computed.
         progress_hook(filepath, result, completed, total) is called as each finishes (optional).
         """
         if not filepaths:
             return []
 
-        max_workers = max_workers or min(len(filepaths), os.cpu_count() or 1)
+        settings = settings or Settings()
+        freq_only = not settings.include_time_domain
 
+        # Sequential path
+        def _eval_one(fp: str) -> Dict[str, any]:
+            if freq_only:
+                return self.metrics.evaluate_file_frequency_only(fp)
+            return self.metrics.evaluate_file(fp)
+
+        # If parallel disabled or only one file, run sequentially
+        if not settings.parallel_per_file or len(filepaths) <= 1:
+            results: List[Dict[str, any]] = []
+            total = len(filepaths)
+            for idx, filepath in enumerate(filepaths, start=1):
+                result = _eval_one(filepath)
+                results.append(result)
+                if progress_hook:
+                    try:
+                        progress_hook(filepath, result, idx, total)
+                    except Exception:
+                        pass
+            return results
+
+        # Parallel path
+        max_workers = max_workers or min(len(filepaths), os.cpu_count() or 1)
         ordered_results: List[Optional[Dict[str, any]]] = [None] * len(filepaths)
         completed = 0
         total = len(filepaths)
@@ -354,13 +432,11 @@ class OpenSNPQualCLI:
                     try:
                         progress_hook(filepath, result, completed, total)
                     except Exception:
-                        # Don't let hook errors break processing
                         pass
 
-        # All entries should be filled; filter None just in case
         return [r for r in ordered_results if r is not None]
 
-    def process_csv(self, input_csv: str, output_prefix: str = None, freq_only: bool = False) -> str:
+    def process_csv(self, input_csv: str, output_prefix: str = None, freq_only: bool = False, parallel_per_file: bool = True) -> str:
         """Process CSV file containing S-parameter filenames"""
         if output_prefix is None:
             output_prefix = Path(input_csv).stem
@@ -379,18 +455,14 @@ class OpenSNPQualCLI:
             else:
                 print(f"Warning: File not found - {filepath}")
 
-        # Process each file (parallel per file)
-        try:
-            results = self.evaluate_files_parallel(filepaths, freq_only=freq_only)
-        except Exception as e:
-            print(f"Parallel processing failed, falling back to sequential: {e}")
-            results = []
-            for filepath in filepaths:
-                if freq_only:
-                    result = self.metrics.evaluate_file_frequency_only(filepath)
-                else:
-                    result = self.metrics.evaluate_file(filepath)
-                results.append(result)
+        # Settings based on CLI flags
+        settings = Settings(
+            parallel_per_file=parallel_per_file,
+            include_time_domain=not freq_only
+        )
+
+        # Process each file according to settings
+        results = self.evaluate_files(filepaths, settings=settings)
         
         # Save results
         output_csv = f"{output_prefix}_result.csv"
