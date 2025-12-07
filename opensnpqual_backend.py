@@ -42,6 +42,7 @@ from typing import List, Dict, Tuple, Optional
 
 import threading
 from datetime import datetime
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # For S-parameter processing
 import skrf as rf
@@ -286,6 +287,20 @@ class SParameterQualityMetrics:
         return results
 
 
+def _evaluate_file_task(args: Tuple[str, bool]) -> Tuple[str, Dict[str, any]]:
+    """
+    Helper for process-based parallel execution.
+    Creates a fresh metrics instance in each worker to avoid shared state.
+    """
+    filepath, freq_only = args
+    metrics = SParameterQualityMetrics()
+    if freq_only:
+        result = metrics.evaluate_file_frequency_only(filepath)
+    else:
+        result = metrics.evaluate_file(filepath)
+    return filepath, result
+
+
 class OpenSNPQualCLI:
     """Command-line interface for OpenSNPQual"""
     
@@ -300,6 +315,51 @@ class OpenSNPQualCLI:
     def evaluate_file_frequency_only(self, filepath: str) -> Dict[str, any]:
         return self.metrics.evaluate_file_frequency_only(filepath)
 
+    def evaluate_files_parallel(self, filepaths: List[str], freq_only: bool = False, max_workers: Optional[int] = None, progress_hook=None) -> List[Dict[str, any]]:
+        """
+        Evaluate multiple files in parallel using processes (per-file parallelism).
+        Returns results in the same order as input.
+        progress_hook(filepath, result, completed, total) is called as each finishes (optional).
+        """
+        if not filepaths:
+            return []
+
+        max_workers = max_workers or min(len(filepaths), os.cpu_count() or 1)
+
+        ordered_results: List[Optional[Dict[str, any]]] = [None] * len(filepaths)
+        completed = 0
+        total = len(filepaths)
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            future_map = {
+                executor.submit(_evaluate_file_task, (filepath, freq_only)): idx
+                for idx, filepath in enumerate(filepaths)
+            }
+
+            for future in as_completed(future_map):
+                idx = future_map[future]
+                filepath = filepaths[idx]
+                try:
+                    _, result = future.result()
+                except Exception as e:
+                    result = {
+                        'filename': os.path.basename(filepath),
+                        'passivity_freq':    -1, 'passivity_time':    '-',
+                        'reciprocity_freq':  -1, 'reciprocity_time':  '-',
+                        'causality_freq':    -1, 'causality_time':    '-',
+                        'error': f"Parallel eval failed: {e}",
+                    }
+                ordered_results[idx] = result
+                completed += 1
+                if progress_hook:
+                    try:
+                        progress_hook(filepath, result, completed, total)
+                    except Exception:
+                        # Don't let hook errors break processing
+                        pass
+
+        # All entries should be filled; filter None just in case
+        return [r for r in ordered_results if r is not None]
+
     def process_csv(self, input_csv: str, output_prefix: str = None, freq_only: bool = False) -> str:
         """Process CSV file containing S-parameter filenames"""
         if output_prefix is None:
@@ -310,18 +370,27 @@ class OpenSNPQualCLI:
             reader = csv.reader(f)
             filenames = [row[0] for row in reader if row]
         
-        # Process each file
-        results = []
+        # Filter missing files
+        filepaths = []
         for filename in filenames:
             filepath = filename.strip()
             if os.path.exists(filepath):
+                filepaths.append(filepath)
+            else:
+                print(f"Warning: File not found - {filepath}")
+
+        # Process each file (parallel per file)
+        try:
+            results = self.evaluate_files_parallel(filepaths, freq_only=freq_only)
+        except Exception as e:
+            print(f"Parallel processing failed, falling back to sequential: {e}")
+            results = []
+            for filepath in filepaths:
                 if freq_only:
                     result = self.metrics.evaluate_file_frequency_only(filepath)
                 else:
                     result = self.metrics.evaluate_file(filepath)
                 results.append(result)
-            else:
-                print(f"Warning: File not found - {filepath}")
         
         # Save results
         output_csv = f"{output_prefix}_result.csv"
@@ -431,4 +500,3 @@ class OpenSNPQualCLI:
             f.write("\n")
             f.write("Reference:\"[IEEE Standard for Electrical Characterization of Printed Circuit Board and Related Interconnects at Frequencies up to 50 GHz,](https://ieeexplore.ieee.org/document/9316329/)\" in IEEE Std 370-2020 , vol., no., pp.1-147, 8 Jan. 2021, doi: 10.1109/IEEESTD.2021.9316329. \n")
             f.write("\n")
-

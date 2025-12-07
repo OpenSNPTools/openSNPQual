@@ -295,41 +295,51 @@ class OpenSNPQualGUI:
     
     def _calculate_worker(self):
         """Worker thread for calculations"""
-        self.status_label.config(text="Calculating...")
-        self.progress_var.set(0)
+        self.root.after(0, lambda: self.status_label.config(text="Calculating..."))
+        self.root.after(0, self.progress_var.set, 0)
         
         # Check if time domain calculation is enabled
         calculate_time_domain = self.calculate_time_domain_var.get()
-        
-        # Create temporary CSV file
-        temp_csv = "temp_input.csv"
-        with open(temp_csv, 'w', newline='') as f:
-            writer = csv.writer(f)
-            for filepath in self.file_list:
-                writer.writerow([filepath])
+        freq_only = not calculate_time_domain
+        filepaths = list(self.file_list)
+        total_files = len(filepaths)
 
-        # Process files
-        total_files = len(self.file_list)
-        for i, filepath in enumerate(self.file_list):
-            if calculate_time_domain:
-                # Use full IEEE P370 (freq + time) via CLI/backend
-                result = self.cli.evaluate_file_with_time_domain(filepath)
-            else:
-                # Use frequency domain only via CLI/backend
-                result = self.cli.evaluate_file_frequency_only(filepath)
-
+        # Progress hook executed in worker thread; UI updates are scheduled on main thread
+        def _progress_hook(filepath, result, completed, total):
             self.results[filepath] = result
-
-            progress = (i + 1) / total_files * 100
-            self.progress_var.set(progress)
-
+            progress = completed / total * 100
             self.root.after(0, self._update_table_row, filepath, result)
-        
-        # Clean up temp file
-        if os.path.exists(temp_csv):
-            os.remove(temp_csv)
-        
-        self.status_label.config(text=f"Calculation complete for {total_files} files")
+            self.root.after(0, self.progress_var.set, progress)
+
+        try:
+            results = self.cli.evaluate_files_parallel(
+                filepaths,
+                freq_only=freq_only,
+                max_workers=min(os.cpu_count() or 1, total_files),
+                progress_hook=_progress_hook,
+            )
+        except Exception as e:
+            # Fallback to sequential if parallel evaluation fails
+            results = []
+            for i, filepath in enumerate(filepaths):
+                if calculate_time_domain:
+                    result = self.cli.evaluate_file_with_time_domain(filepath)
+                else:
+                    result = self.cli.evaluate_file_frequency_only(filepath)
+                results.append(result)
+                self.results[filepath] = result
+                progress = (i + 1) / total_files * 100
+                self.root.after(0, self._update_table_row, filepath, result)
+                self.root.after(0, self.progress_var.set, progress)
+            print(f"Parallel evaluation failed, used sequential: {e}")
+
+        # Ensure all results are tracked even if hooks missed (should not happen)
+        for filepath, result in zip(filepaths, results):
+            if filepath not in self.results:
+                self.results[filepath] = result
+                self.root.after(0, self._update_table_row, filepath, result)
+
+        self.root.after(0, lambda: self.status_label.config(text=f"Calculation complete for {total_files} files"))
         
         # Save results automatically
         output_csv = f"snpqual_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -338,7 +348,7 @@ class OpenSNPQualGUI:
         output_md = output_csv.replace('.csv', '.md')
         self.cli.save_markdown_results(list(self.results.values()), output_md)
         
-        self.status_label.config(text=f"Results saved to {output_csv} and {output_md}")
+        self.root.after(0, lambda: self.status_label.config(text=f"Results saved to {output_csv} and {output_md}"))
     
     def _update_table_row(self, filepath, result):
         """Update a single row in the table"""
