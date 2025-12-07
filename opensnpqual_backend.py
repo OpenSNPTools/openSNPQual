@@ -68,19 +68,30 @@ class Settings:
 
 def format_settings_summary(settings: Settings) -> str:
     """
-    Return a Markdown table with all settings values for reporting.
+    Return a Markdown table with all settings values for reporting, including descriptions.
     """
+    descriptions = {
+        "parallel_per_file": "Run files in parallel using a process pool",
+        "include_time_domain": "Compute time-domain (application) metrics",
+        "data_rate": "Data rate in Gbps used for TD evaluation",
+        "sample_per_ui": "Number of samples per UI",
+        "rise_per_ui": "Rise time as a fraction of UI",
+        "pulse_shape": "Pulse shape selector (1=Gaussian)",
+        "extrapolation_method": "Method used for frequency extrapolation",
+        "extras": "Additional settings (reserved)",
+    }
+
     return (
-        "| Setting | Value |\n"
-        "| --- | --- |\n"
-        f"| parallel_per_file | {settings.parallel_per_file} |\n"
-        f"| include_time_domain | {settings.include_time_domain} |\n"
-        f"| data_rate | {settings.data_rate} |\n"
-        f"| sample_per_ui | {settings.sample_per_ui} |\n"
-        f"| rise_per_ui | {settings.rise_per_ui} |\n"
-        f"| pulse_shape | {settings.pulse_shape} |\n"
-        f"| extrapolation_method | {settings.extrapolation_method} |\n"
-        f"| extras | {settings.extras if settings.extras else {}} |\n"
+        "| Setting | Value | Description |\n"
+        "| --- | --- | --- |\n"
+        f"| parallel_per_file | {settings.parallel_per_file} | {descriptions['parallel_per_file']} |\n"
+        f"| include_time_domain | {settings.include_time_domain} | {descriptions['include_time_domain']} |\n"
+        f"| data_rate | {settings.data_rate} | {descriptions['data_rate']} |\n"
+        f"| sample_per_ui | {settings.sample_per_ui} | {descriptions['sample_per_ui']} |\n"
+        f"| rise_per_ui | {settings.rise_per_ui} | {descriptions['rise_per_ui']} |\n"
+        f"| pulse_shape | {settings.pulse_shape} | {descriptions['pulse_shape']} |\n"
+        f"| extrapolation_method | {settings.extrapolation_method} | {descriptions['extrapolation_method']} |\n"
+        f"| extras | {settings.extras if settings.extras else {}} | {descriptions['extras']} |\n"
     )
 
 
@@ -594,7 +605,7 @@ class OpenSNPQualCLI:
             # Quality level legend
             
             f.write("\n")
-            f.write("# How to Interpret The Results -- LENGEND")
+            f.write("# How to Interpret The Results -- LEGEND")
             f.write("\n")
             f.write("### 📊 Quality Metrics Table - Initial (Frequency Domain) - good for quick check\n")
             f.write("\n")

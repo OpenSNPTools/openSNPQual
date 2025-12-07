@@ -1,6 +1,6 @@
 {
   "parallel_per_file": true,
-  "include_time_domain": true,
+  "include_time_domain": false,
   "data_rate": 25.0,
   "sample_per_ui": 16,
   "rise_per_ui": 0.35,
