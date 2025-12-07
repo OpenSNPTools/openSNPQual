@@ -474,7 +474,12 @@ class OpenSNPQualCLI:
         output_md = f"{output_prefix}_result.md"
         elapsed = time.perf_counter() - start_time
         minutes, seconds = divmod(int(elapsed), 60)
-        summary = f"Processed {len(results)} files in {minutes} min {seconds:02d} sec"
+        settings_summary = (
+            f"Settings: parallel_per_file={settings.parallel_per_file}, \n"
+            f"include_time_domain={settings.include_time_domain}, \n"
+            f"extras={settings.extras if settings.extras else {}}\n"
+        )
+        summary = f"Processed {len(results)} files in {minutes} min {seconds:02d} sec. {settings_summary}"
         self.save_markdown_results(results, output_md, summary=summary)
 
         print(summary)
@@ -509,10 +514,6 @@ class OpenSNPQualCLI:
         with open(output_file, 'w') as f:
             f.write(f"# {OPENSNPQUAL_TITLE} -- REPORT\n\n")
             f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-
-            if summary:
-                f.write("## Summary\n\n")
-                f.write(f"{summary}\n\n")
 
             # Results table
             f.write("## Results\n\n")
@@ -558,6 +559,12 @@ class OpenSNPQualCLI:
 
                 f.write(f"| {' | '.join(row)} |\n")
             
+            # Generate summary of settings and files
+            if summary:
+                f.write("## Summary\n\n")
+                f.write(f"{summary}\n\n")
+
+
             # Quality level legend
             
             f.write("\n")

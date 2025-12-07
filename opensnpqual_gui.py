@@ -371,10 +371,16 @@ class OpenSNPQualGUI:
         elapsed = time.perf_counter() - start_time
         minutes, seconds = divmod(int(elapsed), 60)
         status_msg = (
-            f"Finished processing {total_files} files in {minutes} min {seconds:02d} sec. "
+            f"Finished processing {total_files} files in {minutes} min {seconds:02d} sec. \n"
             f"Results saved to {output_csv} and {output_md}"
         )
-        self.cli.save_markdown_results(list(self.results.values()), output_md, summary=status_msg)
+        settings_summary = (
+            f"\n\n### Settings: \n\n parallel_per_file={self.settings.parallel_per_file}, \n\n"
+            f"include_time_domain={self.settings.include_time_domain}, \n\n"
+            f"extras={self.settings.extras if self.settings.extras else {}}\n\n"
+        )
+        summary_for_md = f"{status_msg} {settings_summary}"
+        self.cli.save_markdown_results(list(self.results.values()), output_md, summary=summary_for_md)
 
         self.root.after(0, lambda: self.status_label.config(text=status_msg))
     
