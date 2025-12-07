@@ -58,6 +58,11 @@ class Settings:
     """Settings for controlling evaluation behavior."""
     parallel_per_file: bool = True
     include_time_domain: bool = False
+    data_rate: float = 25.0          # Gbps
+    sample_per_ui: int = 64
+    rise_per_ui: float = 0.35
+    pulse_shape: int = 1
+    extrapolation_method: int = 1
     extras: Dict[str, Any] = field(default_factory=dict)  # Future-proof for additional settings
 
 
@@ -83,6 +88,11 @@ def load_settings(custom_path: Optional[str] = None) -> Settings:
         return Settings(
             parallel_per_file=bool(data.get("parallel_per_file", True)),
             include_time_domain=bool(data.get("include_time_domain", True)),
+            data_rate=float(data.get("data_rate", Settings.data_rate)),
+            sample_per_ui=int(data.get("sample_per_ui", Settings.sample_per_ui)),
+            rise_per_ui=float(data.get("rise_per_ui", Settings.rise_per_ui)),
+            pulse_shape=int(data.get("pulse_shape", Settings.pulse_shape)),
+            extrapolation_method=int(data.get("extrapolation_method", Settings.extrapolation_method)),
             extras=data.get("extras", {}) if isinstance(data.get("extras", {}), dict) else {},
         )
     except Exception:
@@ -97,6 +107,11 @@ def save_settings(settings: Settings, custom_path: Optional[str] = None) -> Path
     payload = {
         "parallel_per_file": settings.parallel_per_file,
         "include_time_domain": settings.include_time_domain,
+        "data_rate": settings.data_rate,
+        "sample_per_ui": settings.sample_per_ui,
+        "rise_per_ui": settings.rise_per_ui,
+        "pulse_shape": settings.pulse_shape,
+        "extrapolation_method": settings.extrapolation_method,
         "extras": settings.extras,
     }
     with open(path, "w") as f:
@@ -201,7 +216,7 @@ class SParameterQualityMetrics:
             return "poor"
 
     
-    def evaluate_file(self, filepath: str) -> Dict[str, any]:
+    def evaluate_file(self, filepath: str, settings: Optional[Settings] = None) -> Dict[str, any]:
         """
         Evaluate all quality metrics for a single file using IEEE P370
         (both frequency- and time-domain).
@@ -215,6 +230,7 @@ class SParameterQualityMetrics:
             - reciprocity_time (RQM_a, mV, Application/Time table)
             - causality_time   (CQM_a, mV, Application/Time table)
         """
+        settings = settings or Settings()
         results = {'filename': os.path.basename(filepath)}
 
         # Reuse common Touchstone loader
@@ -246,20 +262,13 @@ class SParameterQualityMetrics:
             # -----------------------------
             # Time-domain IEEE P370
             # -----------------------------
-            # Use same defaults as GUI
-            data_rate = 25.0          # Gbps
-            sample_per_ui = 64
-            rise_per = 0.35
-            pulse_shape = 1
-            extrapolation_method = 1
-
             causality_time_mv, reciprocity_time_mv, passivity_time_mv = quality_check(
                 freq, sdata, port_num,
-                data_rate,
-                sample_per_ui,
-                rise_per,
-                pulse_shape,
-                extrapolation_method,
+                settings.data_rate,
+                settings.sample_per_ui,
+                settings.rise_per_ui,
+                settings.pulse_shape,
+                settings.extrapolation_method,
             )
 
             results.update({

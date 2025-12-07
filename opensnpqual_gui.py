@@ -335,6 +335,12 @@ class OpenSNPQualGUI:
         settings = Settings(
             parallel_per_file=self.parallel_enabled,
             include_time_domain=calculate_time_domain,
+            data_rate=self.settings.data_rate,
+            sample_per_ui=self.settings.sample_per_ui,
+            rise_per_ui=self.settings.rise_per_ui,
+            pulse_shape=self.settings.pulse_shape,
+            extrapolation_method=self.settings.extrapolation_method,
+            extras=self.settings.extras,
         )
 
         # Progress hook executed in worker thread; UI updates are scheduled on main thread
@@ -356,7 +362,7 @@ class OpenSNPQualGUI:
             results = []
             for i, filepath in enumerate(filepaths):
                 if settings.include_time_domain:
-                    result = self.cli.evaluate_file_with_time_domain(filepath)
+                    result = self.cli.evaluate_file_with_time_domain(filepath, settings=settings)
                 else:
                     result = self.cli.evaluate_file_frequency_only(filepath)
                 results.append(result)
@@ -728,6 +734,8 @@ class OpenSNPQualGUI:
 
     def on_close(self):
         """Handle window close"""
+        if self.settings_window:
+            self._apply_settings_from_window()
         self.settings.include_time_domain = self.calculate_time_domain_var.get()
         self.settings.parallel_per_file = self.parallel_enabled
         self._save_settings()
@@ -762,11 +770,35 @@ class OpenSNPQualGUI:
             command=self._on_settings_time_changed,
         ).pack(anchor=tk.W, pady=4)
 
+        ttk.Separator(frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=8)
+
+        # Time-domain parameter controls
+        self.var_data_rate = tk.DoubleVar(value=self.settings.data_rate)
+        self.var_sample_per_ui = tk.IntVar(value=self.settings.sample_per_ui)
+        self.var_rise_per_ui = tk.DoubleVar(value=self.settings.rise_per_ui)
+        self.var_pulse_shape = tk.IntVar(value=self.settings.pulse_shape)
+        self.var_extrapolation_method = tk.IntVar(value=self.settings.extrapolation_method)
+
+        params = (
+            ("Data rate (Gbps)", self.var_data_rate),
+            ("Samples per UI", self.var_sample_per_ui),
+            ("Rise time (fraction of UI)", self.var_rise_per_ui),
+            ("Pulse shape (1=Gaussian)", self.var_pulse_shape),
+            ("Extrapolation method", self.var_extrapolation_method),
+        )
+
+        for label, var in params:
+            row = ttk.Frame(frame)
+            row.pack(fill=tk.X, pady=2)
+            ttk.Label(row, text=label).pack(side=tk.LEFT)
+            ttk.Entry(row, textvariable=var, width=12).pack(side=tk.RIGHT)
+
         ttk.Button(frame, text="Close", command=self._close_settings_window).pack(anchor=tk.E, pady=(10, 0))
 
         self.settings_window.protocol("WM_DELETE_WINDOW", self._close_settings_window)
 
     def _close_settings_window(self):
+        self._apply_settings_from_window()
         if self.settings_window:
             self.settings_window.destroy()
             self.settings_window = None
@@ -781,6 +813,30 @@ class OpenSNPQualGUI:
         self.settings.include_time_domain = include_time
         self.calculate_time_domain_var.set(include_time)
         self.on_time_domain_toggle()
+
+    def _apply_settings_from_window(self):
+        """Sync TD parameter inputs into settings and persist."""
+        try:
+            self.settings.data_rate = float(self.var_data_rate.get())
+        except Exception:
+            pass
+        try:
+            self.settings.sample_per_ui = int(self.var_sample_per_ui.get())
+        except Exception:
+            pass
+        try:
+            self.settings.rise_per_ui = float(self.var_rise_per_ui.get())
+        except Exception:
+            pass
+        try:
+            self.settings.pulse_shape = int(self.var_pulse_shape.get())
+        except Exception:
+            pass
+        try:
+            self.settings.extrapolation_method = int(self.var_extrapolation_method.get())
+        except Exception:
+            pass
+        self._save_settings()
 
     def run(self):
         """Run the GUI application"""

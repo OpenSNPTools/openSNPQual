@@ -1,5 +1,10 @@
 {
   "parallel_per_file": true,
-  "include_time_domain": false,
+  "include_time_domain": true,
+  "data_rate": 25.0,
+  "sample_per_ui": 16,
+  "rise_per_ui": 0.35,
+  "pulse_shape": 1,
+  "extrapolation_method": 1,
   "extras": {}
 }
