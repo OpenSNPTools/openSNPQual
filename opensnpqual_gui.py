@@ -30,6 +30,7 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 from datetime import datetime
 import webbrowser
+import time
 
 # Optional drag-and-drop support
 try:
@@ -312,6 +313,7 @@ class OpenSNPQualGUI:
         """Worker thread for calculations"""
         self.root.after(0, lambda: self.status_label.config(text="Calculating..."))
         self.root.after(0, self.progress_var.set, 0)
+        start_time = time.perf_counter()
         
         # Check if time domain calculation is enabled
         calculate_time_domain = self.calculate_time_domain_var.get()
@@ -361,16 +363,20 @@ class OpenSNPQualGUI:
                 self.results[filepath] = result
                 self.root.after(0, self._update_table_row, filepath, result)
 
-        self.root.after(0, lambda: self.status_label.config(text=f"Calculation complete for {total_files} files"))
-        
         # Save results automatically
         output_csv = f"snpqual_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         self.cli.save_csv_results(list(self.results.values()), output_csv)
         
         output_md = output_csv.replace('.csv', '.md')
-        self.cli.save_markdown_results(list(self.results.values()), output_md)
-        
-        self.root.after(0, lambda: self.status_label.config(text=f"Results saved to {output_csv} and {output_md}"))
+        elapsed = time.perf_counter() - start_time
+        minutes, seconds = divmod(int(elapsed), 60)
+        status_msg = (
+            f"Finished processing {total_files} files in {minutes} min {seconds:02d} sec. "
+            f"Results saved to {output_csv} and {output_md}"
+        )
+        self.cli.save_markdown_results(list(self.results.values()), output_md, summary=status_msg)
+
+        self.root.after(0, lambda: self.status_label.config(text=status_msg))
     
     def _update_table_row(self, filepath, result):
         """Update a single row in the table"""

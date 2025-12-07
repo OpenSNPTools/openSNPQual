@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass, field
 import json
+import time
 
 import threading
 from datetime import datetime
@@ -462,6 +463,7 @@ class OpenSNPQualCLI:
         )
 
         # Process each file according to settings
+        start_time = time.perf_counter()
         results = self.evaluate_files(filepaths, settings=settings)
         
         # Save results
@@ -470,7 +472,12 @@ class OpenSNPQualCLI:
         
         # Generate markdown report
         output_md = f"{output_prefix}_result.md"
-        self.save_markdown_results(results, output_md)
+        elapsed = time.perf_counter() - start_time
+        minutes, seconds = divmod(int(elapsed), 60)
+        summary = f"Processed {len(results)} files in {minutes} min {seconds:02d} sec"
+        self.save_markdown_results(results, output_md, summary=summary)
+
+        print(summary)
         
         return output_csv
     
@@ -497,12 +504,16 @@ class OpenSNPQualCLI:
                 writer.writerow(row)
 
     
-    def save_markdown_results(self, results: List[Dict], output_file: str):
-        """Save results to Markdown file with color coding"""
+    def save_markdown_results(self, results: List[Dict], output_file: str, summary: Optional[str] = None):
+        """Save results to Markdown file with color coding."""
         with open(output_file, 'w') as f:
             f.write(f"# {OPENSNPQUAL_TITLE} -- REPORT\n\n")
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")            
-                  
+            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+
+            if summary:
+                f.write("## Summary\n\n")
+                f.write(f"{summary}\n\n")
+
             # Results table
             f.write("## Results\n\n")
             f.write("| Filename | Passivity (PQMi, Freq) | Reciprocity (RQMi, Freq) | Causality (CQMi, Freq) |  | "
