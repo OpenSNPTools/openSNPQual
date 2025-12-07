@@ -66,6 +66,24 @@ class Settings:
     extras: Dict[str, Any] = field(default_factory=dict)  # Future-proof for additional settings
 
 
+def format_settings_summary(settings: Settings) -> str:
+    """
+    Return a Markdown table with all settings values for reporting.
+    """
+    return (
+        "| Setting | Value |\n"
+        "| --- | --- |\n"
+        f"| parallel_per_file | {settings.parallel_per_file} |\n"
+        f"| include_time_domain | {settings.include_time_domain} |\n"
+        f"| data_rate | {settings.data_rate} |\n"
+        f"| sample_per_ui | {settings.sample_per_ui} |\n"
+        f"| rise_per_ui | {settings.rise_per_ui} |\n"
+        f"| pulse_shape | {settings.pulse_shape} |\n"
+        f"| extrapolation_method | {settings.extrapolation_method} |\n"
+        f"| extras | {settings.extras if settings.extras else {}} |\n"
+    )
+
+
 def get_settings_path(custom_path: Optional[str] = None) -> Path:
     """
     Return path for settings JSON. Default is alongside the executable/script.
@@ -483,12 +501,11 @@ class OpenSNPQualCLI:
         output_md = f"{output_prefix}_result.md"
         elapsed = time.perf_counter() - start_time
         minutes, seconds = divmod(int(elapsed), 60)
-        settings_summary = (
-            f"Settings: parallel_per_file={settings.parallel_per_file}, \n"
-            f"include_time_domain={settings.include_time_domain}, \n"
-            f"extras={settings.extras if settings.extras else {}}\n"
+        settings_summary = format_settings_summary(settings)
+        summary = (
+            f"Processed {len(results)} files in {minutes} min {seconds:02d} sec.\n\n"
+            f"### Settings\n\n{settings_summary}"
         )
-        summary = f"Processed {len(results)} files in {minutes} min {seconds:02d} sec. {settings_summary}"
         self.save_markdown_results(results, output_md, summary=summary)
 
         print(summary)
